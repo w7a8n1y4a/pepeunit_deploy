@@ -7,4 +7,5 @@ env/*
 data/backend/repo_cache
 data/emqx/data/*
 !data/emqx/data/.keep
-data/postgres/db
+data/postgres/db/*
+!data/postgres/db/.keep
