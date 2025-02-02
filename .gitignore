@@ -1,4 +1,5 @@
-.env*
+env/*
+!env/.keep
 data/backend/repo_cache
 data/emqx/data/*
 !data/emqx/data/.keep

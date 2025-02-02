@@ -12,12 +12,12 @@ services:
     image: postgres:latest
     container_name: postgres
     restart: always
-    env_file:
-      - .env.postgres
     ports:
       - "5432:5432"
     volumes:
       - ./data/postgres/db:/var/lib/postgresql/data
+    env_file:
+      - ./env/.env.postgres
 
   emqx:
     image: emqx/emqx:latest
@@ -35,8 +35,7 @@ services:
       - ./data/emqx/data:/opt/emqx/data
       - ./data/emqx/data:/opt/emqx/log
     env_file:
-      - .env.emqx
-    user: "1000:1000"
+      - ./env/.env.emqx
 
   backend:
     image: w7a8n1y4a/pepeunit-backend:0.1.0
@@ -51,7 +50,7 @@ services:
     volumes:
       - ./data/backend/repo_cache:/app/repo_cache
     env_file:
-      - .env.backend
+      - ./env/.env.backend
 
   frontend:
     image: w7a8n1y4a/pepeunit-frontend:0.1.0
@@ -62,7 +61,7 @@ services:
     ports:
       - "5292:80"
     env_file:
-      - .env.frontend
+      - ./env/.env.frontend
 
   nginx:
     image: nginx:latest
