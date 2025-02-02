@@ -83,9 +83,9 @@ class MakeEnv:
         result_dict = {
             'BACKEND_DOMAIN': self.current_user_env['BACKEND_DOMAIN'],
             'SQLALCHEMY_DATABASE_URL': database_url,
-            'SECRET_KEY': base64.b64encode(os.urandom(32)).decode('utf-8'),
-            'ENCRYPT_KEY': base64.b64encode(os.urandom(32)).decode('utf-8'),
-            'STATIC_SALT': base64.b64encode(os.urandom(32)).decode('utf-8'),
+            'BACKEND_SECRET_KEY': base64.b64encode(os.urandom(32)).decode('utf-8'),
+            'BACKEND_ENCRYPT_KEY': base64.b64encode(os.urandom(32)).decode('utf-8'),
+            'BACKEND_STATIC_SALT': base64.b64encode(os.urandom(32)).decode('utf-8'),
             'TELEGRAM_TOKEN': self.current_user_env['TELEGRAM_TOKEN'],
             'TELEGRAM_BOT_LINK': self.current_user_env['TELEGRAM_BOT_LINK'],
             'MQTT_HOST': self.current_user_env['MQTT_HOST'],
@@ -93,8 +93,8 @@ class MakeEnv:
             'MQTT_PASSWORD': self.current_user_env['MQTT_PASSWORD']
         }
         
-        if 'SECURE' in self.current_user_env:
-            result_dict['SECURE'] = self.current_user_env['SECURE']
+        if 'BACKEND_SECURE' in self.current_user_env:
+            result_dict['BACKEND_SECURE'] = self.current_user_env['BACKEND_SECURE']
             
         if 'MQTT_SECURE' in self.current_user_env:
             result_dict['MQTT_SECURE'] = self.current_user_env['MQTT_SECURE']
