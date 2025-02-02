@@ -63,7 +63,7 @@ class MakeEnv:
     def get_frontend_env_dict(self) -> dict:
         logging.info('Generate .env.frontend')
         domain = self.current_user_env['BACKEND_DOMAIN']
-        https = 'http://' if 'SECURE' in self.current_user_env and self.current_user_env['SECURE'] == 'False' else 'https://'
+        https = 'http://' if 'BACKEND_SECURE' in self.current_user_env and self.current_user_env['BACKEND_SECURE'] == 'False' else 'https://'
         url = https + domain + '/'
         
         return {
