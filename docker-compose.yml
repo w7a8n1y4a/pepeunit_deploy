@@ -38,7 +38,7 @@ services:
       - ./env/.env.emqx
 
   backend:
-    image: w7a8n1y4a/pepeunit-backend:0.1.0
+    image: w7a8n1y4a/pepeunit-backend:0.2.0
     container_name: backend
     restart: always
     depends_on:
@@ -53,7 +53,7 @@ services:
       - ./env/.env.backend
 
   frontend:
-    image: w7a8n1y4a/pepeunit-frontend:0.1.0
+    image: w7a8n1y4a/pepeunit-frontend:0.2.0
     container_name: frontend
     restart: always
     depends_on:
