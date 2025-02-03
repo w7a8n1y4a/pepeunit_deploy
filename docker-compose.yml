@@ -64,7 +64,7 @@ services:
       - ./env/.env.frontend
 
   nginx:
-    image: nginx:latest
+    image: nginx:1.27.3
     container_name: nginx
     restart: always
     depends_on:
