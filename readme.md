@@ -22,6 +22,21 @@
     docker compose up
     ```
 
+## Бэкапы
+
+0. Запустите `Pepeunit` командой, это требуется для получения корректной версии, `sh` сам выключит контейнеры
+    ```bash
+    docker compose up -d
+    ```
+1. Запустите создание backup командой
+    ```bash
+    sudo ./backup.sh backup
+    ```
+1. Развернуть версию из backup
+    ```bash
+    sudo ./backup.sh restore backups/backup_name.tar
+    ```
+
 ## Полезные команды для дебага
 
 - Остановить `docker compose`
