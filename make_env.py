@@ -122,6 +122,5 @@ class MakeEnv:
                 file.write(f"{key}={value}\n")
 
     
-    
 if __name__ == '__main__':
     env_maker = MakeEnv()
