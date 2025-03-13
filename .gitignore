@@ -8,3 +8,5 @@ data/backend/repo_cache
 data/emqx/data/*
 !data/emqx/data/.keep
 data/postgres/db
+
+backups
