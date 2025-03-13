@@ -27,9 +27,6 @@ services:
       - redis
     ports:
       - "1883:1883"
-      - "8083:8083"
-      - "8084:8084"
-      - "8883:8883"
       - "18083:18083"
     volumes:
       - ./data/emqx/data:/opt/emqx/data
