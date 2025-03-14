@@ -82,6 +82,7 @@ class MakeEnv:
         
         result_dict = {
             'BACKEND_DOMAIN': self.current_user_env['BACKEND_DOMAIN'],
+            'BACKEND_WORKER_COUNT': 2,
             'SQLALCHEMY_DATABASE_URL': database_url,
             'BACKEND_SECRET_KEY': base64.b64encode(os.urandom(32)).decode('utf-8'),
             'BACKEND_ENCRYPT_KEY': base64.b64encode(os.urandom(32)).decode('utf-8'),
