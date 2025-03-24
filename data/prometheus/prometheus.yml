@@ -8,7 +8,7 @@ scrape_configs:
     static_configs:
       - targets: ['prometheus:9090']
   - job_name: 'app'
-    scrape_interval: 5s
+    scrape_interval: 15s
     metrics_path: /pepeunit/metrics
     static_configs:
       - targets: ['backend:5000']
