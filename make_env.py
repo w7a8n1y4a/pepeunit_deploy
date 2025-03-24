@@ -13,6 +13,7 @@ class PathEnvs(enum.Enum):
     POSTGRES = 'env/.env.postgres'
     BACKEND = 'env/.env.backend'
     FRONTEND = 'env/.env.frontend'
+    GRAFANA = 'env/.env.grafana'
 
 class MakeEnv:
     target_user_env: str
@@ -41,6 +42,7 @@ class MakeEnv:
         self.save_env(self.get_postgres_env_dict(), PathEnvs.POSTGRES.value)
         self.save_env(self.get_frontend_env_dict(), PathEnvs.FRONTEND.value)
         self.save_env(self.get_backend_env_dict(), PathEnvs.BACKEND.value)
+        self.save_env(self.get_grafana_env_dict(), PathEnvs.GRAFANA.value)
         
         logging.info('Environment file generation is complete')
     
@@ -101,6 +103,13 @@ class MakeEnv:
             result_dict['MQTT_SECURE'] = self.current_user_env['MQTT_SECURE']
             
         return result_dict
+    
+    def get_grafana_env_dict(self) -> dict:
+        logging.info('Generate .env.grafana')
+        return {
+            'GF_SECURITY_ADMIN_PASSWORD': self.current_user_env['GF_PASSWORD'],
+            'GF_USERS_ALLOW_SIGN_UP': 'false',
+        }
     
     def load_env(self, filename: str) -> dict:
         logging.info(f'Load variables from {filename}')
