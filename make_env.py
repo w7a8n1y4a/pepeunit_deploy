@@ -109,6 +109,9 @@ class MakeEnv:
         return {
             'GF_SECURITY_ADMIN_PASSWORD': self.current_user_env['GF_PASSWORD'],
             'GF_USERS_ALLOW_SIGN_UP': 'false',
+            'GF_SERVER_DOMAIN': self.current_user_env['BACKEND_DOMAIN'],
+            'GF_SERVER_ROOT_URL': '%(protocol)s://%(domain)s/grafana/',
+            'GF_SERVER_SERVE_FROM_SUB_PATH': 'true'
         }
     
     def load_env(self, filename: str) -> dict:
