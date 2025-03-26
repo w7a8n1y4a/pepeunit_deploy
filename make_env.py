@@ -91,6 +91,7 @@ class MakeEnv:
             'BACKEND_STATIC_SALT': base64.b64encode(os.urandom(32)).decode('utf-8'),
             'TELEGRAM_TOKEN': self.current_user_env['TELEGRAM_TOKEN'],
             'TELEGRAM_BOT_LINK': self.current_user_env['TELEGRAM_BOT_LINK'],
+            'PROMETHEUS_MULTIPROC_DIR': './prometheus_metrics',
             'MQTT_HOST': self.current_user_env['MQTT_HOST'],
             'MQTT_USERNAME': self.current_user_env['MQTT_USERNAME'],
             'MQTT_PASSWORD': self.current_user_env['MQTT_PASSWORD']
