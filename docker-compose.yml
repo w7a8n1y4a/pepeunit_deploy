@@ -26,7 +26,7 @@ services:
     depends_on:
       - redis
     ports:
-      - "1885:1883"
+      - "1883:1883"
       - "18083:18083"
     volumes:
       - ./data/emqx/data:/opt/emqx/data
