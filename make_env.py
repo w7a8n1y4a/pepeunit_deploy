@@ -82,13 +82,21 @@ class MakeEnv:
         postgres_db: str = self.current_user_env['POSTGRES_DB']
         database_url: str = f'postgresql://{postgres_user}:{postgres_pass}@postgres:5432/{postgres_db}'
         
+        existing_keys = {}
+        if os.path.exists(PathEnvs.BACKEND.value):
+            logging.info('Existing .env.backend found, loading sensitive keys')
+            existing_env = self.load_env(PathEnvs.BACKEND.value)
+            for key in ['BACKEND_SECRET_KEY', 'BACKEND_ENCRYPT_KEY', 'BACKEND_STATIC_SALT']:
+                if key in existing_env:
+                    existing_keys[key] = existing_env[key]
+        
         result_dict = {
             'BACKEND_DOMAIN': self.current_user_env['BACKEND_DOMAIN'],
             'BACKEND_WORKER_COUNT': 2,
             'SQLALCHEMY_DATABASE_URL': database_url,
-            'BACKEND_SECRET_KEY': base64.b64encode(os.urandom(32)).decode('utf-8'),
-            'BACKEND_ENCRYPT_KEY': base64.b64encode(os.urandom(32)).decode('utf-8'),
-            'BACKEND_STATIC_SALT': base64.b64encode(os.urandom(32)).decode('utf-8'),
+            'BACKEND_SECRET_KEY': existing_keys.get('BACKEND_SECRET_KEY', base64.b64encode(os.urandom(32)).decode('utf-8')),
+            'BACKEND_ENCRYPT_KEY': existing_keys.get('BACKEND_ENCRYPT_KEY', base64.b64encode(os.urandom(32)).decode('utf-8')),
+            'BACKEND_STATIC_SALT': existing_keys.get('BACKEND_STATIC_SALT', base64.b64encode(os.urandom(32)).decode('utf-8')),
             'TELEGRAM_TOKEN': self.current_user_env['TELEGRAM_TOKEN'],
             'TELEGRAM_BOT_LINK': self.current_user_env['TELEGRAM_BOT_LINK'],
             'PROMETHEUS_MULTIPROC_DIR': './prometheus_metrics',
