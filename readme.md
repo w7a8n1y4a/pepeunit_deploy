@@ -27,18 +27,18 @@
     ```bash
     docker compose up -d
     ```
-1. Запустите создание бэкапа командой, скрипт сам выключит контейнеры
+1. Запустите создание `backup` командой, скрипт сам выключит контейнеры
     ```bash
     sudo ./backup.sh backup
     ```
-1. Развернуть версию из backup
+1. Развернуть версию из `backup`
     ```bash
     sudo ./backup.sh restore backups/backup_name.tar
     ```
 
 ## Обновление
 
-0. Создайте бэкап
+0. Создайте `backup`
     ```bash
     sudo ./backup.sh backup
     ```
