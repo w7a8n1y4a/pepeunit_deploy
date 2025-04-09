@@ -14,6 +14,7 @@ class PathEnvs(enum.Enum):
     BACKEND = 'env/.env.backend'
     FRONTEND = 'env/.env.frontend'
     GRAFANA = 'env/.env.grafana'
+    CLICKHOUSE = 'env/.env.clickhouse'
 
 class MakeEnv:
     target_user_env: str
@@ -43,6 +44,7 @@ class MakeEnv:
         self.save_env(self.get_frontend_env_dict(), PathEnvs.FRONTEND.value)
         self.save_env(self.get_backend_env_dict(), PathEnvs.BACKEND.value)
         self.save_env(self.get_grafana_env_dict(), PathEnvs.GRAFANA.value)
+        self.save_env(self.get_clickhouse_env_dict(), PathEnvs.CLICKHOUSE.value)
         
         logging.info('Environment file generation is complete')
     
@@ -60,6 +62,14 @@ class MakeEnv:
             'POSTGRES_PASSWORD': self.current_user_env['POSTGRES_PASSWORD'],
             'POSTGRES_DB': self.current_user_env['POSTGRES_DB'],
             'POSTGRES_HOST_AUTH_METHOD': 'md5'
+        }
+        
+    def get_clickhouse_env_dict(self) -> dict:
+        logging.info('Generate .env.clickhouse')
+        return {
+            'CLICKHOUSE_USER': self.current_user_env['CLICKHOUSE_USER'],
+            'CLICKHOUSE_PASSWORD': self.current_user_env['CLICKHOUSE_PASSWORD'],
+            'CLICKHOUSE_DB': self.current_user_env['CLICKHOUSE_DB']
         }
         
     def get_frontend_env_dict(self) -> dict:
@@ -82,6 +92,11 @@ class MakeEnv:
         postgres_db: str = self.current_user_env['POSTGRES_DB']
         database_url: str = f'postgresql://{postgres_user}:{postgres_pass}@postgres:5432/{postgres_db}'
         
+        clickhouse_user: str = self.current_user_env['CLICKHOUSE_USER']
+        clickhouse_pass: str = self.current_user_env['CLICKHOUSE_PASSWORD']
+        clickhouse_db: str = self.current_user_env['CLICKHOUSE_DB']
+        clickhouse_url: str = f'clickhouse+native://{clickhouse_user}:{clickhouse_pass}@clickhouse:9000/{clickhouse_db}'
+        
         existing_keys = {}
         if os.path.exists(PathEnvs.BACKEND.value):
             logging.info('Existing .env.backend found, loading sensitive keys')
@@ -94,6 +109,7 @@ class MakeEnv:
             'BACKEND_DOMAIN': self.current_user_env['BACKEND_DOMAIN'],
             'BACKEND_WORKER_COUNT': 2,
             'SQLALCHEMY_DATABASE_URL': database_url,
+            'CLICKHOUSE_DATABASE_URL': clickhouse_url,
             'BACKEND_SECRET_KEY': existing_keys.get('BACKEND_SECRET_KEY', base64.b64encode(os.urandom(32)).decode('utf-8')),
             'BACKEND_ENCRYPT_KEY': existing_keys.get('BACKEND_ENCRYPT_KEY', base64.b64encode(os.urandom(32)).decode('utf-8')),
             'BACKEND_STATIC_SALT': existing_keys.get('BACKEND_STATIC_SALT', base64.b64encode(os.urandom(32)).decode('utf-8')),
@@ -120,7 +136,8 @@ class MakeEnv:
             'GF_USERS_ALLOW_SIGN_UP': 'false',
             'GF_SERVER_DOMAIN': self.current_user_env['BACKEND_DOMAIN'],
             'GF_SERVER_ROOT_URL': '%(protocol)s://%(domain)s/grafana/',
-            'GF_SERVER_SERVE_FROM_SUB_PATH': 'true'
+            'GF_SERVER_SERVE_FROM_SUB_PATH': 'true',
+            'GF_LOG_LEVEL': 'error'
         }
     
     def load_env(self, filename: str) -> dict:

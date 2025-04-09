@@ -34,13 +34,27 @@ services:
     env_file:
       - ./env/.env.emqx
 
+  clickhouse:
+    image: clickhouse:25.3.2
+    container_name: clickhouse
+    restart: always
+    ports:
+      - 8123:8123
+      - 9000:9000
+      - 9009:9009
+    volumes:
+      - ./data/clickhouse/data:/var/lib/clickhouse
+    env_file:
+      - ./env/.env.clickhouse
+
   backend:
-    image: w7a8n1y4a/pepeunit-backend:0.4.0
+    image: w7a8n1y4a/pepeunit-backend:0.5.0
     container_name: backend
     restart: always
     depends_on:
       - redis
       - postgres
+      - clickhouse
       - emqx
     ports:
       - "5291:5000"
@@ -50,7 +64,7 @@ services:
       - ./env/.env.backend
 
   frontend:
-    image: w7a8n1y4a/pepeunit-frontend:0.4.0
+    image: w7a8n1y4a/pepeunit-frontend:0.5.0
     container_name: frontend
     restart: always
     depends_on:
