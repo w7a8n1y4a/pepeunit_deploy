@@ -84,7 +84,7 @@
     docker exec -it postgres psql -U <POSTGRES_USER> -d <POSTGRES_DB>
     psql -U <POSTGRES_USER> -d <POSTGRES_DB>
     ```
-- Отправить запрос в clickhouse:
+- Отправить запрос в clickhouse через curl:
     ```bash
     curl "http://admin:mypassword@127.0.0.1:8123/?query=SHOW+TABLES"
     ```
