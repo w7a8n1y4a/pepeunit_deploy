@@ -73,6 +73,7 @@
     ```bash
     docker exec -it frontend /bin/sh
     docker exec -it backend /bin/bash
+    docker exec -it datapipe /bin/sh
     docker exec -it emqx /bin/bash
     docker exec -it postgres /bin/bash
     docker exec -it redis /bin/bash
