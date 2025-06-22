@@ -15,7 +15,8 @@ class PathEnvs(enum.Enum):
     FRONTEND = 'env/.env.frontend'
     GRAFANA = 'env/.env.grafana'
     CLICKHOUSE = 'env/.env.clickhouse'
-
+    BACKEND_DATA_PIPE = 'env/.env.backend_data_pipe'
+    
 class MakeEnv:
     target_user_env: str
     is_user_local_env: bool
@@ -45,6 +46,7 @@ class MakeEnv:
         self.save_env(self.get_backend_env_dict(), PathEnvs.BACKEND.value)
         self.save_env(self.get_grafana_env_dict(), PathEnvs.GRAFANA.value)
         self.save_env(self.get_clickhouse_env_dict(), PathEnvs.CLICKHOUSE.value)
+        self.save_env(self.get_backend_data_pipe_env_dict(), PathEnvs.BACKEND_DATA_PIPE.value)
         
         logging.info('Environment file generation is complete')
     
@@ -84,6 +86,37 @@ class MakeEnv:
             'VITE_BACKEND_URI': url + 'pepeunit/graphql'
         }
         
+    def get_backend_data_pipe_env_dict(self) -> dict:
+        logging.info('Generate .env.backend_data_pipe')
+        
+        postgres_user: str = self.current_user_env['POSTGRES_USER']
+        postgres_pass: str = self.current_user_env['POSTGRES_PASSWORD']
+        postgres_db: str = self.current_user_env['POSTGRES_DB']
+        database_url: str = f'postgresql://{postgres_user}:{postgres_pass}@postgres:5432/{postgres_db}'
+        
+        clickhouse_user: str = self.current_user_env['CLICKHOUSE_USER']
+        clickhouse_pass: str = self.current_user_env['CLICKHOUSE_PASSWORD']
+        clickhouse_db: str = self.current_user_env['CLICKHOUSE_DB']
+        clickhouse_url: str = f'clickhouse+native://{clickhouse_user}:{clickhouse_pass}@clickhouse:9000/{clickhouse_db}'
+        
+        existing_keys = {}
+        if os.path.exists(PathEnvs.BACKEND.value):
+            logging.info('Existing .env.backend found, loading sensitive keys')
+            existing_env = self.load_env(PathEnvs.BACKEND.value)
+            for key in ['BACKEND_SECRET_KEY', 'BACKEND_ENCRYPT_KEY', 'BACKEND_STATIC_SALT']:
+                if key in existing_env:
+                    existing_keys[key] = existing_env[key]
+        
+        result_dict = {
+            'BACKEND_DOMAIN': self.current_user_env['BACKEND_DOMAIN'],
+            'BACKEND_SECRET_KEY': existing_keys.get('BACKEND_SECRET_KEY', base64.b64encode(os.urandom(32)).decode('utf-8')),
+            'SQLALCHEMY_DATABASE_URL': database_url,
+            'CLICKHOUSE_DATABASE_URL': clickhouse_url,
+            'MQTT_HOST': self.current_user_env['MQTT_HOST'],
+        }
+        
+        return result_dict
+    
     def get_backend_env_dict(self) -> dict:
         logging.info('Generate .env.backend')
         

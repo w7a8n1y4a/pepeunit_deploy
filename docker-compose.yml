@@ -48,7 +48,7 @@ services:
       - ./env/.env.clickhouse
 
   backend:
-    image: w7a8n1y4a/pepeunit-backend:0.6.0
+    image: w7a8n1y4a/pepeunit-backend:0.7.0
     container_name: backend
     restart: always
     depends_on:
@@ -63,8 +63,21 @@ services:
     env_file:
       - ./env/.env.backend
 
+  datapipe:
+    image: w7a8n1y4a/pepeunit-data-pipe:0.7.0
+    container_name: backend
+    restart: always
+    depends_on:
+      - redis
+      - postgres
+      - clickhouse
+      - emqx
+      - backend
+    env_file:
+      - ./env/.env.backend_data_pipe
+
   frontend:
-    image: w7a8n1y4a/pepeunit-frontend:0.6.0
+    image: w7a8n1y4a/pepeunit-frontend:0.7.0
     container_name: frontend
     restart: always
     depends_on:
