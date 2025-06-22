@@ -65,7 +65,7 @@ services:
 
   datapipe:
     image: w7a8n1y4a/pepeunit-data-pipe:0.7.0
-    container_name: backend
+    container_name: datapipe
     restart: always
     depends_on:
       - redis
