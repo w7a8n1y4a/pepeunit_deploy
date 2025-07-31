@@ -2,9 +2,6 @@
 
 set -e
 
-source ./env/.env.postgres
-source ./env/.env.clickhouse
-
 CLICKHOUSE_CONTAINER="clickhouse"
 POSTGRES_CONTAINER="postgres"
 
@@ -88,10 +85,7 @@ create_backup() {
 restore_backup() {
 
     echo "Stop all containers"
-    docker compose down
-
-    echo "Run only database containers"
-    docker compose up postgres clickhouse -d 
+    docker compose down || echo "Error on stop containers"
 
     if [ -z "$1" ]; then
         echo "Error: Please provide the path to the backup file!"
@@ -114,7 +108,37 @@ restore_backup() {
     sudo rm -rf data/backend
     cp -r "$TMP_BACKUP_DIR/data/"* data/
     rm -rf data/env
-    cp -r "$TMP_BACKUP_DIR/$ENV_DIR/" "$ENV_DIR/"
+
+    mkdir -p "$TMP_BACKUP_DIR"
+    cp -r "$TMP_BACKUP_DIR/$ENV_DIR" .
+
+    source ./env/.env.postgres
+    source ./env/.env.clickhouse
+
+    echo "Run only database containers"
+    docker compose up postgres clickhouse -d
+    
+    echo "Waiting for PostgreSQL and ClickHouse to become healthy..."
+
+    for SERVICE in postgres clickhouse; do
+        echo "Checking $SERVICE..."
+        while true; do
+            STATUS=$(docker inspect --format='{{.State.Health.Status}}' "$SERVICE" 2>/dev/null)
+
+            if [ "$STATUS" == "healthy" ]; then
+            echo "$SERVICE is healthy."
+            break
+            elif [ "$STATUS" == "unhealthy" ]; then
+            echo "$SERVICE became unhealthy. Exiting."
+            exit 1
+            else
+            echo "$SERVICE is not ready yet. Status: $STATUS"
+            sleep 2
+            fi
+        done
+    done
+
+    echo "All services are healthy."
 
     # postgres check
     if [ ! -f "$TMP_BACKUP_DIR/postgres.backup" ]; then
@@ -127,6 +151,7 @@ restore_backup() {
     docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS $POSTGRES_DB;"
     docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d postgres -c "CREATE DATABASE $POSTGRES_DB;"
     docker exec "$POSTGRES_CONTAINER" pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" -F c /tmp/restore.backup
+    echo "Success restore Postgres"
 
     # click check
     if [ ! -f "$TMP_BACKUP_DIR/clickhouse.zip" ]; then
@@ -139,6 +164,7 @@ restore_backup() {
     docker cp "$TMP_BACKUP_DIR/clickhouse.zip" "$CLICKHOUSE_CONTAINER:$clickhouse_backup_path"
     docker exec "$CLICKHOUSE_CONTAINER" clickhouse-client --query="DROP DATABASE IF EXISTS $CLICKHOUSE_DB;"
     docker exec "$CLICKHOUSE_CONTAINER" clickhouse-client --query="RESTORE DATABASE $CLICKHOUSE_DB FROM File('$clickhouse_backup_path');"
+    echo "Success restore Clickhouse"
 
     # clear
     echo "Clear tmp dir"
@@ -152,6 +178,8 @@ restore_backup() {
 
 case "$1" in
     backup)
+        source ./env/.env.postgres
+        source ./env/.env.clickhouse
         create_backup
         ;;
     restore)

@@ -18,6 +18,12 @@ services:
       - ./data/postgres/db:/var/lib/postgresql/data
     env_file:
       - ./env/.env.postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   emqx:
     image: emqx/emqx:5.8.4
@@ -46,6 +52,12 @@ services:
       - ./data/clickhouse/data:/var/lib/clickhouse
     env_file:
       - ./env/.env.clickhouse
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider --quiet http://clickhouse:8123 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   backend:
     image: w7a8n1y4a/pepeunit-backend:0.7.0
