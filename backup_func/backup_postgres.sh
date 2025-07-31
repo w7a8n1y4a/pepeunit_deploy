@@ -12,4 +12,4 @@ docker exec -e PGPASSWORD=$POSTGRES_PASSWORD $CONTAINER_NAME \
 
 docker cp $CONTAINER_NAME:$BACKUP_PATH ./$BACKUP_NAME
 
-echo "✅ Backup saved as $BACKUP_NAME"
+echo "Backup saved as $BACKUP_NAME"
