@@ -59,6 +59,10 @@ create_backup() {
     
     echo "Run create Clickhouse backup"
     local clickhouse_backup_path="/var/lib/clickhouse/backups/backup.zip"
+    docker exec "$CLICKHOUSE_CONTAINER" bash -c "
+        mkdir -p /var/lib/clickhouse/backups && 
+        chown clickhouse:clickhouse /var/lib/clickhouse/backups &&
+        chmod 750 -R /var/lib/clickhouse/backups"
     docker exec "$CLICKHOUSE_CONTAINER" rm -f /var/lib/clickhouse/backups/backup.zip
     docker exec "$CLICKHOUSE_CONTAINER" clickhouse-client --query="BACKUP DATABASE $CLICKHOUSE_DB TO File('$clickhouse_backup_path');"
     docker cp "$CLICKHOUSE_CONTAINER:$clickhouse_backup_path" "$TMP_BACKUP_DIR/clickhouse.zip"
@@ -161,7 +165,6 @@ restore_backup() {
 
     echo "Restoring ClickHouse database..."
     local clickhouse_backup_path="/var/lib/clickhouse/backups/backup.zip"
-    docker exec "$CLICKHOUSE_CONTAINER" mkdir -p /var/lib/clickhouse/backups
     docker cp "$TMP_BACKUP_DIR/clickhouse.zip" "$CLICKHOUSE_CONTAINER:$clickhouse_backup_path"
     docker exec "$CLICKHOUSE_CONTAINER" clickhouse-client --query="DROP DATABASE IF EXISTS $CLICKHOUSE_DB;"
     docker exec "$CLICKHOUSE_CONTAINER" clickhouse-client --query="RESTORE DATABASE $CLICKHOUSE_DB FROM File('$clickhouse_backup_path');"
