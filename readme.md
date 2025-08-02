@@ -10,6 +10,10 @@
     git clone https://git.pepemoss.com/pepe/pepeunit/pepeunit_deploy.git
     cd pepeunit_deploy
     ```
+1. Установить нужный уровень видимости для data дирректории:
+    ```bash
+    sudo chmod 777 -R data
+    ```
 1. Заполнить файл `.env.local` или `.env.global` своими данными на основе одноимённых файлов с пометкой `.example`
 1. Запустить команду генерации окружений для сервисов, все файлы будут сохранены в дирректории `env`:
     ```bash
