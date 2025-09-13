@@ -1,15 +1,13 @@
-version: '3.8'
-
 services:
   redis:
-    image: redis:7.4.2
+    image: redis:8.2.1
     container_name: redis
     restart: always
     ports:
       - "6379:6379"
 
   postgres:
-    image: postgres:17.2
+    image: postgres:17.6
     container_name: postgres
     restart: always
     ports:
@@ -26,7 +24,7 @@ services:
       start_period: 10s
 
   emqx:
-    image: emqx/emqx:5.8.4
+    image: emqx/emqx:5.8.8
     container_name: emqx
     restart: always
     depends_on:
@@ -41,7 +39,7 @@ services:
       - ./env/.env.emqx
 
   clickhouse:
-    image: clickhouse:25.3.2
+    image: clickhouse:25.7
     container_name: clickhouse
     restart: always
     ports:
@@ -60,7 +58,7 @@ services:
       start_period: 10s
 
   backend:
-    image: w7a8n1y4a/pepeunit-backend:0.8.0
+    image: w7a8n1y4a/pepeunit-backend:0.9.0
     container_name: backend
     restart: always
     depends_on:
@@ -89,7 +87,7 @@ services:
       - ./env/.env.backend_data_pipe
 
   frontend:
-    image: w7a8n1y4a/pepeunit-frontend:0.8.0
+    image: w7a8n1y4a/pepeunit-frontend:0.9.0
     container_name: frontend
     restart: always
     depends_on:
@@ -100,7 +98,7 @@ services:
       - ./env/.env.frontend
 
   nginx:
-    image: nginx:1.27.3
+    image: nginx:1.29.1
     container_name: nginx
     restart: always
     depends_on:
@@ -112,7 +110,7 @@ services:
       - ./data/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
 
   prometheus:
-    image: prom/prometheus:v2.53.4
+    image: prom/prometheus:v3.5.0
     container_name: prometheus
     restart: always
     depends_on:
@@ -123,7 +121,7 @@ services:
       - ./data/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
 
   grafana:
-    image: grafana/grafana:11.5.2
+    image: grafana/grafana:12.1.1
     container_name: grafana
     restart: always
     depends_on:
@@ -133,5 +131,7 @@ services:
       - 3000:3000
     volumes:
       - ./data/grafana/provisioning:/etc/grafana/provisioning
+      - ./data/grafana/grafana.ini:/etc/grafana/grafana.ini
+      - ./data/grafana/data:/var/lib/grafana
     env_file:
       - ./env/.env.grafana

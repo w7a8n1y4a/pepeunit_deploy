@@ -5,6 +5,40 @@ import enum
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+
+grafana_ini_template = """
+[server]
+root_url = {URI}grafana/
+serve_from_sub_path = true
+
+[panels]
+min_refresh_interval = 60s
+
+[organizations]
+allow_organization_creation = true
+
+[auth]
+disable_login_form = false
+oauth_allow_insecure_email_lookup=true
+
+[auth.generic_oauth]
+enabled = true
+name = Pepeunit
+allow_sign_up = true
+client_id = grafana-client
+client_secret = dummy
+scopes = openid profile email
+auth_url = {URI}pepeunit/api/v1/grafana/oidc/authorize
+token_url = {URI}pepeunit/api/v1/grafana/oidc/token
+api_url = {URI}pepeunit/api/v1/grafana/oidc/userinfo
+email_attribute_path = email
+login_attribute_path = name
+role_attribute_path = role
+role_attribute_strict = true
+org_attribute_path = organization
+skip_org_role_sync = true
+"""
+
 class PathEnvs(enum.Enum):
     LOCAL_ENV = '.env.local'
     GLOBAL_ENV = '.env.global'
@@ -48,13 +82,23 @@ class MakeEnv:
         self.save_env(self.get_clickhouse_env_dict(), PathEnvs.CLICKHOUSE.value)
         self.save_env(self.get_backend_data_pipe_env_dict(), PathEnvs.BACKEND_DATA_PIPE.value)
         
+        logging.info('Generate grafana.ini')
+        with open("data/grafana/grafana.ini", "w") as f:
+            f.write(grafana_ini_template.format(URI=self.get_uri()))
+        
         logging.info('Environment file generation is complete')
+    
+    def get_uri(self) -> str:
+        domain = self.current_user_env['BACKEND_DOMAIN']
+        https = 'http://' if 'BACKEND_SECURE' in self.current_user_env and self.current_user_env['BACKEND_SECURE'] == 'False' else 'https://'
+        return https + domain + '/'
     
     def get_emqx_env_dict(self) -> dict:
         logging.info('Generate .env.emqx')
         return {
             'EMQX_DASHBOARD__DEFAULT_USERNAME': self.current_user_env['MQTT_USERNAME'],
             'EMQX_DASHBOARD__DEFAULT_PASSWORD': self.current_user_env['MQTT_PASSWORD'],
+            'EMQX_PROMETHEUS__METRICS__ENABLED': 'true'
         }
         
     def get_postgres_env_dict(self) -> dict:
@@ -76,14 +120,10 @@ class MakeEnv:
         
     def get_frontend_env_dict(self) -> dict:
         logging.info('Generate .env.frontend')
-        domain = self.current_user_env['BACKEND_DOMAIN']
-        https = 'http://' if 'BACKEND_SECURE' in self.current_user_env and self.current_user_env['BACKEND_SECURE'] == 'False' else 'https://'
-        url = https + domain + '/'
-        
         return {
-            'VITE_INSTANCE_NAME': domain,
-            'VITE_SELF_URI': url,
-            'VITE_BACKEND_URI': url + 'pepeunit/graphql'
+            'VITE_INSTANCE_NAME': self.current_user_env['BACKEND_DOMAIN'],
+            'VITE_SELF_URI': self.get_uri(),
+            'VITE_BACKEND_URI': self.get_uri() + 'pepeunit/graphql'
         }
         
     def get_backend_data_pipe_env_dict(self) -> dict:
@@ -151,7 +191,9 @@ class MakeEnv:
             'PROMETHEUS_MULTIPROC_DIR': './prometheus_metrics',
             'MQTT_HOST': self.current_user_env['MQTT_HOST'],
             'MQTT_USERNAME': self.current_user_env['MQTT_USERNAME'],
-            'MQTT_PASSWORD': self.current_user_env['MQTT_PASSWORD']
+            'MQTT_PASSWORD': self.current_user_env['MQTT_PASSWORD'],
+            'GF_ADMIN_USER': self.current_user_env['GF_USER'],
+            'GF_ADMIN_GF_ADMIN_PASSWORD': self.current_user_env['GF_PASSWORD']
         }
         
         if 'BACKEND_SECURE' in self.current_user_env:
@@ -165,12 +207,14 @@ class MakeEnv:
     def get_grafana_env_dict(self) -> dict:
         logging.info('Generate .env.grafana')
         return {
+            'GF_SECURITY_ADMIN_USER': self.current_user_env['GF_USER'],
             'GF_SECURITY_ADMIN_PASSWORD': self.current_user_env['GF_PASSWORD'],
             'GF_USERS_ALLOW_SIGN_UP': 'false',
             'GF_SERVER_DOMAIN': self.current_user_env['BACKEND_DOMAIN'],
             'GF_SERVER_ROOT_URL': '%(protocol)s://%(domain)s/grafana/',
             'GF_SERVER_SERVE_FROM_SUB_PATH': 'true',
-            'GF_LOG_LEVEL': 'error'
+            'GF_LOG_LEVEL': 'error',
+            'GF_INSTALL_PLUGINS': 'yesoreyeram-infinity-datasource,marcusolsson-hourly-heatmap-panel'
         }
     
     def load_env(self, filename: str) -> dict:
