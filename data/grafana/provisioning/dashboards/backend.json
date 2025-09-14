@@ -1026,7 +1026,9 @@
   "refresh": "3s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": [],
+  "tags": [
+    "Backend"
+  ],
   "templating": {
     "list": []
   },
