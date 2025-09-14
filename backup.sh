@@ -71,7 +71,15 @@ create_backup() {
     echo "Creating archive"
     mkdir -p "$TMP_BACKUP_DIR/data"
     for dir in "${DATA_DIRS[@]}"; do
-        cp -r "data/$dir" "$TMP_BACKUP_DIR/data/"
+        if [ "$dir" == "grafana" ]; then
+            echo "Backing up Grafana from container..."
+            mkdir -p "$TMP_BACKUP_DIR/data/grafana"
+            docker cp grafana:/var/lib/grafana "$TMP_BACKUP_DIR/data/grafana/data/"
+            cp -r "data/$dir/provisioning" "$TMP_BACKUP_DIR/data/grafana/"
+            cp "data/$dir/grafana.ini" "$TMP_BACKUP_DIR/data/grafana/"
+        else
+            cp -r "data/$dir" "$TMP_BACKUP_DIR/data/"
+        fi
     done
     cp -r "$ENV_DIR" "$TMP_BACKUP_DIR/"
     tar -cvf "$BACKUP_FILE" -C "$TMP_BACKUP_DIR" .
@@ -115,6 +123,8 @@ restore_backup() {
 
     mkdir -p "$TMP_BACKUP_DIR"
     cp -r "$TMP_BACKUP_DIR/$ENV_DIR" .
+
+    sudo chmod 777 -R data/grafana/data
 
     source ./env/.env.postgres
     source ./env/.env.clickhouse
