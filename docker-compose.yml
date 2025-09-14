@@ -144,3 +144,23 @@ services:
       - "9333:9333"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  loki:
+    image: grafana/loki:3.5.5
+    container_name: loki
+    restart: always
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./data/loki/local-config.yaml:/etc/loki/local-config.yaml:ro
+
+  promtail:
+    image: grafana/promtail:3.5
+    container_name: promtail
+    restart: always
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./data/promtail:/etc/promtail
+    command: -config.file=/etc/promtail/config.yml
