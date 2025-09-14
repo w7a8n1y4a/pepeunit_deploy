@@ -193,7 +193,7 @@ class MakeEnv:
             'MQTT_USERNAME': self.current_user_env['MQTT_USERNAME'],
             'MQTT_PASSWORD': self.current_user_env['MQTT_PASSWORD'],
             'GF_ADMIN_USER': self.current_user_env['GF_USER'],
-            'GF_ADMIN_GF_ADMIN_PASSWORD': self.current_user_env['GF_PASSWORD']
+            'GF_ADMIN_PASSWORD': self.current_user_env['GF_PASSWORD']
         }
         
         if 'BACKEND_SECURE' in self.current_user_env:
