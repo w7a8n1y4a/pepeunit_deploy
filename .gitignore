@@ -9,5 +9,7 @@ data/emqx/data/*
 !data/emqx/data/.keep
 data/postgres/db
 data/clickhouse/data
+data/grafana/data
+data/grafana/grafana.ini
 
 backups
