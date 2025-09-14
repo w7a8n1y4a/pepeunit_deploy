@@ -135,3 +135,12 @@ services:
       - ./data/grafana/data:/var/lib/grafana
     env_file:
       - ./env/.env.grafana
+
+  logporter:
+    image: lifailon/logporter:latest
+    container_name: logporter
+    restart: always
+    ports:
+      - "9333:9333"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
