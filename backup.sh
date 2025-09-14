@@ -175,6 +175,7 @@ restore_backup() {
 
     echo "Restoring ClickHouse database..."
     local clickhouse_backup_path="/var/lib/clickhouse/backups/backup.zip"
+    docker exec "$CLICKHOUSE_CONTAINER" mkdir -p /var/lib/clickhouse/backups
     docker cp "$TMP_BACKUP_DIR/clickhouse.zip" "$CLICKHOUSE_CONTAINER:$clickhouse_backup_path"
     docker exec "$CLICKHOUSE_CONTAINER" clickhouse-client --query="DROP DATABASE IF EXISTS $CLICKHOUSE_DB;"
     docker exec "$CLICKHOUSE_CONTAINER" clickhouse-client --query="RESTORE DATABASE $CLICKHOUSE_DB FROM File('$clickhouse_backup_path');"
