@@ -10,6 +10,8 @@ DATA_DIRS=(
   "grafana"
   "nginx"
   "prometheus"
+  "promtail"
+  "loki"
 )
 
 ENV_DIR="env"
