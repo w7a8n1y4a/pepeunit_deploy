@@ -13,7 +13,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ./data/postgres/db:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     env_file:
       - ./env/.env.postgres
     healthcheck:
@@ -33,8 +33,8 @@ services:
       - "1883:1883"
       - "18083:18083"
     volumes:
-      - ./data/emqx/data:/opt/emqx/data
-      - ./data/emqx/data:/opt/emqx/log
+      - emqx_data:/opt/emqx/data
+      - emqx_log:/opt/emqx/log
     env_file:
       - ./env/.env.emqx
 
@@ -47,7 +47,7 @@ services:
       - 9000:9000
       - 9009:9009
     volumes:
-      - ./data/clickhouse/data:/var/lib/clickhouse
+      - clickhouse_data:/var/lib/clickhouse
     env_file:
       - ./env/.env.clickhouse
     healthcheck:
@@ -69,7 +69,7 @@ services:
     ports:
       - "5291:5000"
     volumes:
-      - ./data/backend/repo_cache:/app/repo_cache
+      - backend_repo_cache:/app/repo_cache
     env_file:
       - ./env/.env.backend
 
@@ -132,7 +132,7 @@ services:
     volumes:
       - ./data/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./data/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
-      - ./data/grafana/data:/var/lib/grafana
+      - grafana_data:/var/lib/grafana
     env_file:
       - ./env/.env.grafana
 
@@ -164,3 +164,11 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./data/promtail/config.yml:/etc/promtail/config.yml:ro
     command: -config.file=/etc/promtail/config.yml
+
+volumes:
+  postgres_data: {}
+  clickhouse_data: {}
+  backend_repo_cache: {}
+  grafana_data: {}
+  emqx_data: {}
+  emqx_log: {}

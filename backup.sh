@@ -5,14 +5,11 @@ set -e
 CLICKHOUSE_CONTAINER="clickhouse"
 POSTGRES_CONTAINER="postgres"
 
-DATA_DIRS=(
-  "backend"
-  "grafana"
-  "nginx"
-  "prometheus"
-  "promtail"
-  "loki"
-)
+# Compose project-aware settings
+PROJECT_NAME="${COMPOSE_PROJECT_NAME:-$(basename "$PWD")}"
+# Volume keys defined in docker-compose.yml (top-level volumes)
+# DB volumes are handled via dumps, not raw archives
+DB_VOLUME_KEYS=("postgres_data" "clickhouse_data")
 
 ENV_DIR="env"
 BACKUP_DIR="./backups"
@@ -41,13 +38,6 @@ fi
 BACKUP_FILE="$BACKUP_DIR/${TIMESTAMP}_v${VERSION}_pepeunit_backup.tar"
 
 create_backup() {
-    for dir in "${DATA_DIRS[@]}"; do
-        if [ ! -d "data/$dir" ]; then
-            echo "Error: Directory data/$dir not found!"
-            exit 1
-        fi
-    done
-
     if [ ! -d "$ENV_DIR" ]; then
         echo "Error: Directory $ENV_DIR not found!"
         exit 1
@@ -70,19 +60,41 @@ create_backup() {
     docker cp "$CLICKHOUSE_CONTAINER:$clickhouse_backup_path" "$TMP_BACKUP_DIR/clickhouse.zip"
     chmod 644 "$TMP_BACKUP_DIR/clickhouse.zip"
 
-    echo "Creating archive"
-    mkdir -p "$TMP_BACKUP_DIR/data"
-    for dir in "${DATA_DIRS[@]}"; do
-        if [ "$dir" == "grafana" ]; then
-            echo "Backing up Grafana from container..."
-            mkdir -p "$TMP_BACKUP_DIR/data/grafana"
-            docker cp grafana:/var/lib/grafana "$TMP_BACKUP_DIR/data/grafana/data/"
-            cp -r "data/$dir/provisioning" "$TMP_BACKUP_DIR/data/grafana/"
-            cp "data/$dir/grafana.ini" "$TMP_BACKUP_DIR/data/grafana/"
+    echo "Creating volumes backups (atomic archives)"
+    mkdir -p "$TMP_BACKUP_DIR/volumes"
+
+    # Helper: check if value in array
+    in_array() { local e match="$1"; shift; for e in "$@"; do [[ "$e" == "$match" ]] && return 0; done; return 1; }
+    # Helper: get compose volume key from full docker volume name
+    get_volume_key() {
+        local full="$1"
+        local prefix="${PROJECT_NAME}_"
+        if [[ "$full" == "$prefix"* ]]; then
+            echo "${full#${prefix}}"
         else
-            cp -r "data/$dir" "$TMP_BACKUP_DIR/data/"
+            echo "$full"
         fi
+    }
+
+    VOLUMES=$(docker volume ls -q --filter "label=com.docker.compose.project=${PROJECT_NAME}" || true)
+    VOLUMES_LIST_FILE="$TMP_BACKUP_DIR/volumes.list"
+    : > "$VOLUMES_LIST_FILE"
+
+    for vol in $VOLUMES; do
+        key="$(get_volume_key "$vol")"
+        if in_array "$key" "${DB_VOLUME_KEYS[@]}"; then
+            echo "Skip DB volume: $key"
+            continue
+        fi
+        echo "Archiving volume: $key ($vol)"
+        docker run --rm \
+            -v "$vol":/data:ro \
+            -v "$TMP_BACKUP_DIR/volumes":/backup \
+            busybox sh -c "mkdir -p /tmp/d && cd /data && tar -czf /backup/${key}.tar.gz ."
+        echo "$key" >> "$VOLUMES_LIST_FILE"
     done
+
+    echo "Creating final archive"
     cp -r "$ENV_DIR" "$TMP_BACKUP_DIR/"
     if [ -f ".env.local" ]; then
         cp ".env.local" "$TMP_BACKUP_DIR/"
@@ -124,12 +136,7 @@ restore_backup() {
     mkdir -p "$TMP_BACKUP_DIR"
     tar -xvf "$BACKUP_PATH" -C "$TMP_BACKUP_DIR"
 
-    echo "Restoring data and env directories..."
-    sudo rm -rf data/backend
-    cp -r "$TMP_BACKUP_DIR/data/"* data/
-    rm -rf data/env
-
-    mkdir -p "$TMP_BACKUP_DIR"
+    echo "Restoring env files..."
     cp -r "$TMP_BACKUP_DIR/$ENV_DIR" .
     if [ -f "$TMP_BACKUP_DIR/.env.local" ]; then
         cp "$TMP_BACKUP_DIR/.env.local" .
@@ -138,11 +145,17 @@ restore_backup() {
         cp "$TMP_BACKUP_DIR/.env.global" .
     fi
 
-    sudo chmod 777 -R data/grafana/data
-
     source ./env/.env.postgres
     source ./env/.env.clickhouse
 
+    echo "Recreate project volumes"
+    EXISTING_VOLUMES=$(docker volume ls -q --filter "label=com.docker.compose.project=${PROJECT_NAME}" || true)
+    if [ -n "$EXISTING_VOLUMES" ]; then
+        docker volume rm -f $EXISTING_VOLUMES || true
+    fi
+
+    echo "Create containers and volumes without starting"
+    docker compose create
     echo "Run only database containers"
     docker compose up postgres clickhouse -d
     
@@ -194,6 +207,26 @@ restore_backup() {
     docker exec "$CLICKHOUSE_CONTAINER" clickhouse-client --query="DROP DATABASE IF EXISTS $CLICKHOUSE_DB;"
     docker exec "$CLICKHOUSE_CONTAINER" clickhouse-client --query="RESTORE DATABASE $CLICKHOUSE_DB FROM File('$clickhouse_backup_path');"
     echo "Success restore Clickhouse"
+
+    echo "Restoring non-DB volumes from archives..."
+    VOLUMES_DIR="$TMP_BACKUP_DIR/volumes"
+    if [ -d "$VOLUMES_DIR" ]; then
+        for archive in "$VOLUMES_DIR"/*.tar.gz; do
+            [ -e "$archive" ] || continue
+            key="$(basename "$archive" .tar.gz)"
+            vol="${PROJECT_NAME}_${key}"
+            echo "Restoring volume $key -> $vol"
+            docker run --rm \
+                -v "$vol":/data \
+                -v "$VOLUMES_DIR":/backup \
+                busybox sh -c "rm -rf /data/* && tar -xzf /backup/${key}.tar.gz -C /data"
+        done
+    else
+        echo "No volumes archive directory found, skipping volumes restore."
+    fi
+
+    echo "Starting full stack"
+    docker compose up -d
 
     # clear
     echo "Clear tmp dir"
