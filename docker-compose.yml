@@ -118,7 +118,7 @@ services:
     ports:
       - 9090:9090
     volumes:
-      - ./data/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./data/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
 
   grafana:
     image: grafana/grafana:12.1.1
@@ -130,8 +130,8 @@ services:
     ports:
       - 3000:3000
     volumes:
-      - ./data/grafana/provisioning:/etc/grafana/provisioning
-      - ./data/grafana/grafana.ini:/etc/grafana/grafana.ini
+      - ./data/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./data/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
       - ./data/grafana/data:/var/lib/grafana
     env_file:
       - ./env/.env.grafana
@@ -162,5 +162,5 @@ services:
     volumes:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./data/promtail:/etc/promtail
+      - ./data/promtail/config.yml:/etc/promtail/config.yml:ro
     command: -config.file=/etc/promtail/config.yml
