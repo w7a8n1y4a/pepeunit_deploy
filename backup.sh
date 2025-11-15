@@ -84,6 +84,12 @@ create_backup() {
         fi
     done
     cp -r "$ENV_DIR" "$TMP_BACKUP_DIR/"
+    if [ -f ".env.local" ]; then
+        cp ".env.local" "$TMP_BACKUP_DIR/"
+    fi
+    if [ -f ".env.global" ]; then
+        cp ".env.global" "$TMP_BACKUP_DIR/"
+    fi
     tar -cvf "$BACKUP_FILE" -C "$TMP_BACKUP_DIR" .
 
     echo "Clear tmp dir"
@@ -125,6 +131,12 @@ restore_backup() {
 
     mkdir -p "$TMP_BACKUP_DIR"
     cp -r "$TMP_BACKUP_DIR/$ENV_DIR" .
+    if [ -f "$TMP_BACKUP_DIR/.env.local" ]; then
+        cp "$TMP_BACKUP_DIR/.env.local" .
+    fi
+    if [ -f "$TMP_BACKUP_DIR/.env.global" ]; then
+        cp "$TMP_BACKUP_DIR/.env.global" .
+    fi
 
     sudo chmod 777 -R data/grafana/data
 
