@@ -89,15 +89,15 @@ class MakeEnv:
         logging.info('Environment file generation is complete')
     
     def get_uri(self) -> str:
-        domain = self.current_user_env['BACKEND_DOMAIN']
-        https = 'http://' if 'BACKEND_SECURE' in self.current_user_env and self.current_user_env['BACKEND_SECURE'] == 'False' else 'https://'
+        domain = self.current_user_env['PU_DOMAIN']
+        https = 'http://' if 'PU_SECURE' in self.current_user_env and self.current_user_env['PU_SECURE'] == 'False' else 'https://'
         return https + domain + '/'
     
     def get_emqx_env_dict(self) -> dict:
         logging.info('Generate .env.emqx')
         return {
-            'EMQX_DASHBOARD__DEFAULT_USERNAME': self.current_user_env['MQTT_USERNAME'],
-            'EMQX_DASHBOARD__DEFAULT_PASSWORD': self.current_user_env['MQTT_PASSWORD'],
+            'EMQX_DASHBOARD__DEFAULT_USERNAME': self.current_user_env['PU_MQTT_USERNAME'],
+            'EMQX_DASHBOARD__DEFAULT_PASSWORD': self.current_user_env['PU_MQTT_PASSWORD'],
             'EMQX_PROMETHEUS__METRICS__ENABLED': 'true'
         }
         
@@ -121,7 +121,7 @@ class MakeEnv:
     def get_frontend_env_dict(self) -> dict:
         logging.info('Generate .env.frontend')
         return {
-            'VITE_INSTANCE_NAME': self.current_user_env['BACKEND_DOMAIN'],
+            'VITE_INSTANCE_NAME': self.current_user_env['PU_DOMAIN'],
             'VITE_SELF_URI': self.get_uri(),
             'VITE_BACKEND_URI': self.get_uri() + 'pepeunit/graphql'
         }
@@ -143,16 +143,17 @@ class MakeEnv:
         if os.path.exists(PathEnvs.BACKEND.value):
             logging.info('Existing .env.backend found, loading sensitive keys')
             existing_env = self.load_env(PathEnvs.BACKEND.value)
-            for key in ['BACKEND_SECRET_KEY', 'BACKEND_ENCRYPT_KEY', 'BACKEND_STATIC_SALT']:
+            for key in ['PU_DP_SECRET_KEY', 'PU_DP_ENCRYPT_KEY', 'PU_DP_STATIC_SALT']:
                 if key in existing_env:
                     existing_keys[key] = existing_env[key]
         
         result_dict = {
-            'BACKEND_DOMAIN': self.current_user_env['BACKEND_DOMAIN'],
-            'BACKEND_SECRET_KEY': existing_keys.get('BACKEND_SECRET_KEY', base64.b64encode(os.urandom(32)).decode('utf-8')),
-            'SQLALCHEMY_DATABASE_URL': database_url,
-            'CLICKHOUSE_DATABASE_URL': clickhouse_url,
-            'MQTT_HOST': self.current_user_env['MQTT_HOST'],
+            'PU_DP_DOMAIN': self.current_user_env['PU_DOMAIN'],
+            'PU_DP_SECRET_KEY': existing_keys.get('PU_SECRET_KEY', base64.b64encode(os.urandom(32)).decode('utf-8')),
+            'PU_DP_SQLALCHEMY_DATABASE_URL': database_url,
+            'PU_DP_CLICKHOUSE_DATABASE_URL': clickhouse_url,
+            'PU_DP_MQTT_HOST': self.current_user_env['PU_MQTT_HOST'],
+            'PU_DP_MQTT_PORT': self.current_user_env['PU_MQTT_PORT'],
         }
         
         return result_dict
@@ -174,33 +175,34 @@ class MakeEnv:
         if os.path.exists(PathEnvs.BACKEND.value):
             logging.info('Existing .env.backend found, loading sensitive keys')
             existing_env = self.load_env(PathEnvs.BACKEND.value)
-            for key in ['BACKEND_SECRET_KEY', 'BACKEND_ENCRYPT_KEY', 'BACKEND_STATIC_SALT']:
+            for key in ['PU_SECRET_KEY', 'PU_ENCRYPT_KEY', 'PU_STATIC_SALT']:
                 if key in existing_env:
                     existing_keys[key] = existing_env[key]
         
         result_dict = {
-            'BACKEND_DOMAIN': self.current_user_env['BACKEND_DOMAIN'],
-            'BACKEND_WORKER_COUNT': 2,
-            'SQLALCHEMY_DATABASE_URL': database_url,
-            'CLICKHOUSE_DATABASE_URL': clickhouse_url,
-            'BACKEND_SECRET_KEY': existing_keys.get('BACKEND_SECRET_KEY', base64.b64encode(os.urandom(32)).decode('utf-8')),
-            'BACKEND_ENCRYPT_KEY': existing_keys.get('BACKEND_ENCRYPT_KEY', base64.b64encode(os.urandom(32)).decode('utf-8')),
-            'BACKEND_STATIC_SALT': existing_keys.get('BACKEND_STATIC_SALT', base64.b64encode(os.urandom(32)).decode('utf-8')),
-            'TELEGRAM_TOKEN': self.current_user_env['TELEGRAM_TOKEN'],
-            'TELEGRAM_BOT_LINK': self.current_user_env['TELEGRAM_BOT_LINK'],
-            'PROMETHEUS_MULTIPROC_DIR': './prometheus_metrics',
-            'MQTT_HOST': self.current_user_env['MQTT_HOST'],
-            'MQTT_USERNAME': self.current_user_env['MQTT_USERNAME'],
-            'MQTT_PASSWORD': self.current_user_env['MQTT_PASSWORD'],
-            'GF_ADMIN_USER': self.current_user_env['GF_USER'],
-            'GF_ADMIN_PASSWORD': self.current_user_env['GF_PASSWORD']
+            'PU_DOMAIN': self.current_user_env['PU_DOMAIN'],
+            'PU_WORKER_COUNT': 2,
+            'PU_SQLALCHEMY_DATABASE_URL': database_url,
+            'PU_CLICKHOUSE_DATABASE_URL': clickhouse_url,
+            'PU_SECRET_KEY': existing_keys.get('PU_SECRET_KEY', base64.b64encode(os.urandom(32)).decode('utf-8')),
+            'PU_ENCRYPT_KEY': existing_keys.get('PU_ENCRYPT_KEY', base64.b64encode(os.urandom(32)).decode('utf-8')),
+            'PU_STATIC_SALT': existing_keys.get('PU_STATIC_SALT', base64.b64encode(os.urandom(32)).decode('utf-8')),
+            'PU_TELEGRAM_TOKEN': self.current_user_env['PU_TELEGRAM_TOKEN'],
+            'PU_TELEGRAM_BOT_LINK': self.current_user_env['PU_TELEGRAM_BOT_LINK'],
+            'PU_PROMETHEUS_MULTIPROC_DIR': './prometheus_metrics',
+            'PU_MQTT_HOST': self.current_user_env['PU_MQTT_HOST'],
+            'PU_MQTT_PORT': self.current_user_env['PU_MQTT_PORT'],
+            'PU_MQTT_USERNAME': self.current_user_env['PU_MQTT_USERNAME'],
+            'PU_MQTT_PASSWORD': self.current_user_env['PU_MQTT_PASSWORD'],
+            'PU_GRAFANA_ADMIN_USER': self.current_user_env['GF_USER'],
+            'PU_GRAFANA_ADMIN_PASSWORD': self.current_user_env['GF_PASSWORD']
         }
         
-        if 'BACKEND_SECURE' in self.current_user_env:
-            result_dict['BACKEND_SECURE'] = self.current_user_env['BACKEND_SECURE']
+        if 'PU_SECURE' in self.current_user_env:
+            result_dict['PU_SECURE'] = self.current_user_env['PU_SECURE']
             
-        if 'MQTT_SECURE' in self.current_user_env:
-            result_dict['MQTT_SECURE'] = self.current_user_env['MQTT_SECURE']
+        if 'PU_MQTT_SECURE' in self.current_user_env:
+            result_dict['PU_MQTT_SECURE'] = self.current_user_env['PU_MQTT_SECURE']
             
         return result_dict
     
@@ -210,7 +212,7 @@ class MakeEnv:
             'GF_SECURITY_ADMIN_USER': self.current_user_env['GF_USER'],
             'GF_SECURITY_ADMIN_PASSWORD': self.current_user_env['GF_PASSWORD'],
             'GF_USERS_ALLOW_SIGN_UP': 'false',
-            'GF_SERVER_DOMAIN': self.current_user_env['BACKEND_DOMAIN'],
+            'GF_SERVER_DOMAIN': self.current_user_env['PU_DOMAIN'],
             'GF_SERVER_ROOT_URL': '%(protocol)s://%(domain)s/grafana/',
             'GF_SERVER_SERVE_FROM_SUB_PATH': 'true',
             'GF_LOG_LEVEL': 'error',
