@@ -1,6 +1,6 @@
 # Развёртывание Pepeunit
 
-[Подробная документация по развёртыванию](https://pepeunit.com/deployment/docker.html)
+[Документация по развёртыванию](https://pepeunit.com/deployment/docker/deploy.html)
 
 ## Шаги чтобы запустить Pepeunit
 
@@ -57,7 +57,6 @@
 1. Выполните запуск `Pepeunit`
     ```bash
     docker compose up -d
-    ```
 
 ## Полезные команды для дебага
 
