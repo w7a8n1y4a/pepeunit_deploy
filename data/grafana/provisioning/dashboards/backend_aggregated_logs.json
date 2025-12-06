@@ -159,17 +159,17 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": {},
+            "excludeByName": {
+              "Time": true
+            },
             "indexByName": {
               "Value #A": 0,
-              "Time": 1,
-              "level": 2,
-              "logger": 3,
-              "message": 4,
-              "traceback": 5
+              "level": 1,
+              "logger": 2,
+              "message": 3,
+              "traceback": 4
             },
             "renameByName": {
-              "Time": "time",
               "Value #A": "count"
             }
           }
