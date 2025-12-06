@@ -303,7 +303,7 @@
     },
     "timezone": "",
     "title": "Backend Aggregated Logs",
-    "uid": "backend-errors-aggregated",
+    "uid": "backend-aggregated-logs",
     "version": 1,
     "weekStart": ""
   }
