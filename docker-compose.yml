@@ -154,6 +154,7 @@ services:
     command: -config.file=/etc/loki/local-config.yaml
     volumes:
       - ./data/loki/local-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
 
   promtail:
     image: grafana/promtail:3.5
@@ -172,3 +173,4 @@ volumes:
   grafana_data: {}
   emqx_data: {}
   emqx_log: {}
+  loki_data: {}

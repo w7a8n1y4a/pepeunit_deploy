@@ -9,18 +9,25 @@ common:
     kvstore:
       store: inmemory
   replication_factor: 1
-  path_prefix: /tmp/loki
+  path_prefix: /loki
 
 schema_config:
   configs:
-  - from: 2020-05-15
-    store: tsdb
-    object_store: filesystem
-    schema: v13
-    index:
-      prefix: index_
-      period: 24h
+    - from: 2020-05-15
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
 
 storage_config:
   filesystem:
-    directory: /tmp/loki/chunks
+    directory: /loki/chunks
+
+table_manager:
+  retention_deletes_enabled: true
+  retention_period: 168h
+
+limits_config:
+  max_query_series: 5000
