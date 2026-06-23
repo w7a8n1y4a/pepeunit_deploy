@@ -216,7 +216,7 @@ class MakeEnv:
             'GF_SERVER_ROOT_URL': '%(protocol)s://%(domain)s/grafana/',
             'GF_SERVER_SERVE_FROM_SUB_PATH': 'true',
             'GF_LOG_LEVEL': 'error',
-            'GF_INSTALL_PLUGINS': 'yesoreyeram-infinity-datasource,marcusolsson-hourly-heatmap-panel'
+            'GF_PLUGINS_PREINSTALL_SYNC': 'yesoreyeram-infinity-datasource,marcusolsson-hourly-heatmap-panel'
         }
     
     def load_env(self, filename: str) -> dict:

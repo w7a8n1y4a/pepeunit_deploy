@@ -13,3 +13,5 @@ data/grafana/data
 data/grafana/grafana.ini
 
 backups
+
+__pycache__
