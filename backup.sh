@@ -8,8 +8,8 @@ POSTGRES_CONTAINER="postgres"
 # Compose project-aware settings
 PROJECT_NAME="${COMPOSE_PROJECT_NAME:-$(basename "$PWD")}"
 # Volume keys defined in docker-compose.yml (top-level volumes)
-# DB volumes are handled via dumps; Loki logs are large and not needed in backup
-SKIP_VOLUME_KEYS=("postgres_data" "clickhouse_data" "loki_data")
+# DB volumes are handled via dumps; Loki/EMQX volumes are large or stateless
+SKIP_VOLUME_KEYS=("postgres_data" "clickhouse_data" "loki_data" "emqx_data" "emqx_log")
 
 ENV_DIR="env"
 BACKUP_DIR="./backups"
