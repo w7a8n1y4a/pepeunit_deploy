@@ -8,8 +8,8 @@ POSTGRES_CONTAINER="postgres"
 # Compose project-aware settings
 PROJECT_NAME="${COMPOSE_PROJECT_NAME:-$(basename "$PWD")}"
 # Volume keys defined in docker-compose.yml (top-level volumes)
-# DB volumes are handled via dumps, not raw archives
-DB_VOLUME_KEYS=("postgres_data" "clickhouse_data")
+# DB volumes are handled via dumps; Loki logs are large and not needed in backup
+SKIP_VOLUME_KEYS=("postgres_data" "clickhouse_data" "loki_data")
 
 ENV_DIR="env"
 BACKUP_DIR="./backups"
@@ -82,8 +82,8 @@ create_backup() {
 
     for vol in $VOLUMES; do
         key="$(get_volume_key "$vol")"
-        if in_array "$key" "${DB_VOLUME_KEYS[@]}"; then
-            echo "Skip DB volume: $key"
+        if in_array "$key" "${SKIP_VOLUME_KEYS[@]}"; then
+            echo "Skip volume: $key"
             continue
         fi
         echo "Archiving volume: $key ($vol)"
