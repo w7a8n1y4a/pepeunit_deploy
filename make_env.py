@@ -139,17 +139,19 @@ class MakeEnv:
         clickhouse_db: str = self.current_user_env['CLICKHOUSE_DB']
         clickhouse_url: str = f'clickhouse+native://{clickhouse_user}:{clickhouse_pass}@clickhouse:9000/{clickhouse_db}'
         
-        existing_keys = {}
-        if os.path.exists(PathEnvs.BACKEND.value):
-            logging.info('Existing .env.backend found, loading sensitive keys')
-            existing_env = self.load_env(PathEnvs.BACKEND.value)
-            for key in ['PU_DP_SECRET_KEY', 'PU_DP_ENCRYPT_KEY', 'PU_DP_STATIC_SALT']:
-                if key in existing_env:
-                    existing_keys[key] = existing_env[key]
-        
+        secret_key = self.load_existing_value(
+            PathEnvs.BACKEND_DATA_PIPE.value, 'PU_DP_SECRET_KEY'
+        )
+        if not secret_key:
+            secret_key = self.load_existing_value(
+                PathEnvs.BACKEND.value, 'PU_SECRET_KEY'
+            )
+        if not secret_key:
+            secret_key = base64.b64encode(os.urandom(32)).decode('utf-8')
+
         result_dict = {
             'PU_DP_DOMAIN': self.current_user_env['PU_DOMAIN'],
-            'PU_DP_SECRET_KEY': existing_keys.get('PU_SECRET_KEY', base64.b64encode(os.urandom(32)).decode('utf-8')),
+            'PU_DP_SECRET_KEY': secret_key,
             'PU_DP_SQLALCHEMY_DATABASE_URL': database_url,
             'PU_DP_CLICKHOUSE_DATABASE_URL': clickhouse_url,
             'PU_DP_MQTT_HOST': self.current_user_env['PU_MQTT_HOST'],
@@ -219,6 +221,12 @@ class MakeEnv:
             'GF_PLUGINS_PREINSTALL_SYNC': 'yesoreyeram-infinity-datasource,marcusolsson-hourly-heatmap-panel'
         }
     
+    def load_existing_value(self, filename: str, key: str):
+        if not os.path.exists(filename):
+            return None
+        value = self.load_env(filename).get(key, '').strip()
+        return value or None
+
     def load_env(self, filename: str) -> dict:
         logging.info(f'Load variables from {filename}')
         
