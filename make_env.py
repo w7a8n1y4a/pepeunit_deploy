@@ -98,7 +98,7 @@ class MakeEnv:
         return {
             'EMQX_DASHBOARD__DEFAULT_USERNAME': self.current_user_env['PU_MQTT_USERNAME'],
             'EMQX_DASHBOARD__DEFAULT_PASSWORD': self.current_user_env['PU_MQTT_PASSWORD'],
-            'EMQX_PROMETHEUS__METRICS__ENABLED': 'true'
+            'EMQX_PROMETHEUS__ENABLE_BASIC_AUTH': 'false',
         }
         
     def get_postgres_env_dict(self) -> dict:

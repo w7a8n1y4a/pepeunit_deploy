@@ -116,6 +116,7 @@ services:
     restart: always
     depends_on:
       - backend
+      - emqx
     ports:
       - 9090:9090
     volumes:
