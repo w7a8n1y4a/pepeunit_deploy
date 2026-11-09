@@ -1,6 +1,6 @@
 services:
   redis:
-    image: redis:8.10.1
+    image: redis:8.10.3
     container_name: redis
     restart: always
     ports:
@@ -14,8 +14,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
-    env_file:
-      - ./env/.env.postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?run make_env.py}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run make_env.py}
+      POSTGRES_DB: ${POSTGRES_DB:?run make_env.py}
+      POSTGRES_HOST_AUTH_METHOD: md5
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
@@ -24,7 +27,7 @@ services:
       start_period: 10s
 
   emqx:
-    image: emqx/emqx:6.3.0
+    image: emqx/emqx:6.3.2
     container_name: emqx
     restart: always
     depends_on:
@@ -35,11 +38,13 @@ services:
     volumes:
       - emqx_data:/opt/emqx/data
       - emqx_log:/opt/emqx/log
-    env_file:
-      - ./env/.env.emqx
+    environment:
+      EMQX_DASHBOARD__DEFAULT_USERNAME: ${PU_MQTT_USERNAME:?run make_env.py}
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: ${PU_MQTT_PASSWORD:?run make_env.py}
+      EMQX_PROMETHEUS__ENABLE_BASIC_AUTH: "false"
 
   clickhouse:
-    image: clickhouse:26.8.2
+    image: clickhouse:26.10.3
     container_name: clickhouse
     restart: always
     ports:
@@ -49,8 +54,10 @@ services:
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - ./data/clickhouse/disable_system_logs.xml:/etc/clickhouse-server/config.d/disable_system_logs.xml:ro
-    env_file:
-      - ./env/.env.clickhouse
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:?run make_env.py}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?run make_env.py}
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:?run make_env.py}
     healthcheck:
       test: ["CMD-SHELL", "wget --spider --quiet http://clickhouse:8123 || exit 1"]
       interval: 10s
@@ -59,7 +66,7 @@ services:
       start_period: 10s
 
   backend:
-    image: w7a8n1y4a/pepeunit-backend:1.4.0
+    image: w7a8n1y4a/pepeunit-server:1.5.0
     container_name: backend
     restart: always
     depends_on:
@@ -70,36 +77,45 @@ services:
     ports:
       - "5291:5000"
     volumes:
-      - backend_repo_cache:/app/repo_cache
-    env_file:
-      - ./env/.env.backend
-
-  datapipe:
-    image: w7a8n1y4a/pepeunit-data-pipe:1.4.0
-    container_name: datapipe
-    restart: always
-    depends_on:
-      - redis
-      - postgres
-      - clickhouse
-      - emqx
-      - backend
-    env_file:
-      - ./env/.env.backend_data_pipe
+      - backend_repo_cache:/app/${PU_SAVE_REPO_PATH:-repo_cache}
+    # a variable the owner did not set stays unset, the server uses its default
+    environment:
+      - PU_APP_PREFIX
+      - PU_API_V1_PREFIX
+      - PU_WORKER_COUNT
+      - PU_DOMAIN
+      - PU_SECURE
+      - PU_SAVE_REPO_PATH
+      - PU_PROMETHEUS_MULTIPROC_DIR
+      - PU_SECRET_KEY
+      - PU_ENCRYPT_KEY
+      - PU_SQLALCHEMY_DATABASE_URL
+      - PU_CLICKHOUSE_DATABASE_URL
+      - PU_REDIS_URL
+      - PU_NOTIFICATION_LOKI_URL
+      - PU_MQTT_HOST
+      - PU_MQTT_SECURE
+      - PU_MQTT_PORT
+      - PU_MQTT_API_PORT
+      - PU_MQTT_USERNAME
+      - PU_MQTT_PASSWORD
+      - PU_MQTT_REDIS_AUTH_URL
+      - PU_GRAFANA_ADMIN_USER
+      - PU_GRAFANA_ADMIN_PASSWORD
 
   frontend:
-    image: w7a8n1y4a/pepeunit-frontend:1.4.0
+    image: w7a8n1y4a/pepeunit:1.5.0
     container_name: frontend
     restart: always
     depends_on:
       - backend
     ports:
       - "5292:80"
-    env_file:
-      - ./env/.env.frontend
+    environment:
+      INSTANCE_URL: ${INSTANCE_URL:?run make_env.py}
 
   nginx:
-    image: nginx:1.31.5
+    image: nginx:1.31.8
     container_name: nginx
     restart: always
     depends_on:
@@ -111,7 +127,7 @@ services:
       - ./data/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
 
   prometheus:
-    image: prom/prometheus:v3.14.0
+    image: prom/prometheus:v3.16.0
     container_name: prometheus
     restart: always
     depends_on:
@@ -123,7 +139,7 @@ services:
       - ./data/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
 
   grafana:
-    image: grafana/grafana:13.2.1
+    image: grafana/grafana:13.3.0
     container_name: grafana
     restart: always
     depends_on:
@@ -135,11 +151,18 @@ services:
       - ./data/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./data/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
       - grafana_data:/var/lib/grafana
-    env_file:
-      - ./env/.env.grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${PU_GRAFANA_ADMIN_USER:?run make_env.py}
+      GF_SECURITY_ADMIN_PASSWORD: ${PU_GRAFANA_ADMIN_PASSWORD:?run make_env.py}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_DOMAIN: ${PU_DOMAIN:?run make_env.py}
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_LOG_LEVEL: error
+      GF_PLUGINS_PREINSTALL_SYNC: yesoreyeram-infinity-datasource,marcusolsson-hourly-heatmap-panel
 
   logporter:
-    image: lifailon/logporter:1.2.0
+    image: lifailon/logporter:1.5.1
     container_name: logporter
     restart: always
     ports:
@@ -148,7 +171,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   loki:
-    image: grafana/loki:3.7.7
+    image: grafana/loki:3.7.9
     container_name: loki
     restart: always
     ports:

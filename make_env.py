@@ -1,252 +1,243 @@
-import os
-import base64
-import logging
-import enum
+#!/usr/bin/env python3
+"""Build the config of the compose stack from one owner file.
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+Owner fills .env.local or .env.global (copy of the matching .example). Every
+variable the owner can set lives there. This script turns it into:
 
+* .env, which docker compose reads by itself. docker-compose.yml names what
+  every container gets from it, so a container sees only its own variables;
+* the nginx, prometheus and grafana configs in data/.
 
-grafana_ini_template = """
-[server]
-root_url = {URI}grafana/
-serve_from_sub_path = true
+Run it after checkout and after every update. The output is generated and
+rewritten on every run: edit the owner file, not .env or data/.
 
-[panels]
-min_refresh_interval = 60s
-
-[organizations]
-allow_organization_creation = true
-
-[auth]
-disable_login_form = false
-oauth_allow_insecure_email_lookup=true
-
-[auth.generic_oauth]
-enabled = true
-name = Pepeunit
-allow_sign_up = true
-client_id = grafana-client
-client_secret = dummy
-scopes = openid profile email
-auth_url = {URI}pepeunit/api/v1/grafana/oidc/authorize
-token_url = {URI}pepeunit/api/v1/grafana/oidc/token
-api_url = {URI}pepeunit/api/v1/grafana/oidc/userinfo
-email_attribute_path = email
-login_attribute_path = name
-role_attribute_path = role
-role_attribute_strict = true
-org_attribute_path = organization
-skip_org_role_sync = true
+Secrets are the only state. A value of <32-bit-key> is replaced with a new
+random key, and the key is written into the owner file itself. Next runs find
+a real value there and reuse it, so running the script again never changes
+the keys. PU_SECRET_KEY and PU_ENCRYPT_KEY are added the same way when they
+are missing. If the owner file has none, the key of the running stack (.env,
+or env/.env.backend of release 1.4.0) is taken, so it keeps its keys.
 """
 
-class PathEnvs(enum.Enum):
-    LOCAL_ENV = '.env.local'
-    GLOBAL_ENV = '.env.global'
-    
-    EMQX = 'env/.env.emqx'
-    POSTGRES = 'env/.env.postgres'
-    BACKEND = 'env/.env.backend'
-    FRONTEND = 'env/.env.frontend'
-    GRAFANA = 'env/.env.grafana'
-    CLICKHOUSE = 'env/.env.clickhouse'
-    BACKEND_DATA_PIPE = 'env/.env.backend_data_pipe'
-    
-class MakeEnv:
-    target_user_env: str
-    is_user_local_env: bool
-    
-    current_user_env: dict = {}
-    
-    def __init__(self):
-        
-        logging.info('Run make envs')
-        logging.info('Run search .env.local or .env.global')
-        if os.path.exists(PathEnvs.LOCAL_ENV.value):
-            logging.info('The .env.local file was found')
-            self.target_user_env = PathEnvs.LOCAL_ENV.value
-            self.is_user_local_env = True
-        elif os.path.exists(PathEnvs.GLOBAL_ENV.value):   
-            logging.info('The .env.global file was found')
-            self.target_user_env = PathEnvs.GLOBAL_ENV.value
-            self.is_user_local_env = False
+from __future__ import annotations
+
+import argparse
+import base64
+import logging
+import os
+import re
+import sys
+from pathlib import Path
+from urllib.parse import unquote, urlsplit
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+ROOT = Path(__file__).resolve().parent
+INPUT_ENVS = ('.env.local', '.env.global')
+
+COMPOSE_ENV = '.env'
+RUNNING_ENVS = (COMPOSE_ENV, 'env/.env.backend')
+
+# Files with @NAME@ markers. The generated file lies next to the template
+TEMPLATES = (
+    'data/nginx/nginx.conf.template',
+    'data/prometheus/prometheus.yml.template',
+    'data/grafana/grafana.ini.template',
+)
+
+SECRET_PLACEHOLDER = '<32-bit-key>'
+ALWAYS_SECRET = ('PU_SECRET_KEY', 'PU_ENCRYPT_KEY')
+FALSE_VALUES = {'false', '0', 'no', 'off', 'f', 'n'}
+PLAIN_VALUE = re.compile(r'[A-Za-z0-9_@%+=:,./-]*')
+
+
+def parse_env(path: Path) -> dict:
+    result = {}
+    if path.is_file():
+        for line in path.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, value = line.split('=', 1)
+                value = value.strip()
+                if len(value) >= 2 and value[0] == value[-1] == "'":
+                    value = value[1:-1]
+                result[key.strip()] = value
+    return result
+
+
+def is_placeholder(value: str) -> bool:
+    return re.fullmatch(r'<.*>', value) is not None
+
+
+def new_secret() -> str:
+    return base64.b64encode(os.urandom(32)).decode()
+
+
+def find_input() -> Path:
+    for name in INPUT_ENVS:
+        if (ROOT / name).is_file():
+            logging.info('Owner file: %s', name)
+            return ROOT / name
+    sys.exit(f'No {" or ".join(INPUT_ENVS)}. Copy the matching .example file and fill it in')
+
+
+def resolve_secrets(values: dict) -> dict:
+    """Return the secrets that must be written into the owner file."""
+    wanted = [k for k, v in values.items() if v == SECRET_PLACEHOLDER]
+    wanted += [k for k in ALWAYS_SECRET if not values.get(k) and k not in wanted]
+
+    secrets = {}
+    for key in wanted:
+        running = next((v for name in RUNNING_ENVS if (v := parse_env(ROOT / name).get(key)) and not is_placeholder(v)), '')
+        if running:
+            secrets[key] = running
+            logging.info('%s: taken from the running stack', key)
         else:
-            logging.error('No sample env files were found. Create an .env.local or .env.global file')
-            
-        self.current_user_env = self.load_env(self.target_user_env)
-        
-        self.save_env(self.get_emqx_env_dict(), PathEnvs.EMQX.value)
-        self.save_env(self.get_postgres_env_dict(), PathEnvs.POSTGRES.value)
-        self.save_env(self.get_frontend_env_dict(), PathEnvs.FRONTEND.value)
-        self.save_env(self.get_backend_env_dict(), PathEnvs.BACKEND.value)
-        self.save_env(self.get_grafana_env_dict(), PathEnvs.GRAFANA.value)
-        self.save_env(self.get_clickhouse_env_dict(), PathEnvs.CLICKHOUSE.value)
-        self.save_env(self.get_backend_data_pipe_env_dict(), PathEnvs.BACKEND_DATA_PIPE.value)
-        
-        logging.info('Generate grafana.ini')
-        with open("data/grafana/grafana.ini", "w") as f:
-            f.write(grafana_ini_template.format(URI=self.get_uri()))
-        
-        logging.info('Environment file generation is complete')
-    
-    def get_uri(self) -> str:
-        domain = self.current_user_env['PU_DOMAIN']
-        https = 'http://' if 'PU_SECURE' in self.current_user_env and self.current_user_env['PU_SECURE'] == 'False' else 'https://'
-        return https + domain + '/'
-    
-    def get_emqx_env_dict(self) -> dict:
-        logging.info('Generate .env.emqx')
-        return {
-            'EMQX_DASHBOARD__DEFAULT_USERNAME': self.current_user_env['PU_MQTT_USERNAME'],
-            'EMQX_DASHBOARD__DEFAULT_PASSWORD': self.current_user_env['PU_MQTT_PASSWORD'],
-            'EMQX_PROMETHEUS__ENABLE_BASIC_AUTH': 'false',
+            secrets[key] = new_secret()
+            logging.info('%s: generated', key)
+    return secrets
+
+
+def save_secrets(path: Path, secrets: dict) -> None:
+    """Put the secrets into the owner file: replace the line, or add it."""
+    lines = path.read_text().splitlines()
+    for key, value in secrets.items():
+        for i, line in enumerate(lines):
+            if line.split('=', 1)[0].strip() == key:
+                lines[i] = f'{key}={value}'
+                break
+        else:
+            lines.append(f'{key}={value}')
+    path.write_text('\n'.join(lines) + '\n')
+
+
+class Builder:
+    def __init__(self, values: dict, source: str):
+        self.values = values
+        self.header = f'# Generated by make_env.py from {source}. Do not edit, changes are overwritten\n'
+        self.errors: list[str] = []
+
+    def need(self, key: str) -> str:
+        value = self.values.get(key, '')
+        if not value:
+            self.errors.append(f'{key} is not set')
+        return value
+
+    def url_parts(self, key: str) -> tuple[str, str, str]:
+        """User, password and database name of a database URL."""
+        url = urlsplit(self.need(key))
+        parts = (unquote(url.username or ''), unquote(url.password or ''), url.path.lstrip('/'))
+        if self.values.get(key) and not all(parts):
+            self.errors.append(f'{key} must look like scheme://user:password@host:port/database')
+        return parts
+
+    def env_line(self, key: str, value: str) -> str:
+        """One line that both docker compose and bash read back as the same value."""
+        if not PLAIN_VALUE.fullmatch(value):
+            if "'" in value or '\n' in value:
+                self.errors.append(f"{key}: a quote or a line break in the value is not supported")
+            value = f"'{value}'"
+        return f'{key}={value}\n'
+
+    def env_text(self, items: dict) -> str:
+        return self.header + ''.join(self.env_line(k, v) for k, v in items.items())
+
+    def build(self) -> dict[str, str]:
+        values = self.values
+
+        domain = self.need('PU_DOMAIN')
+        secure = values.get('PU_SECURE', 'True').lower() not in FALSE_VALUES
+        uri = f'{"https" if secure else "http"}://{domain}'
+        app_prefix = values.get('PU_APP_PREFIX', '/pepeunit')
+        api = uri + app_prefix + values.get('PU_API_V1_PREFIX', '/api/v1')
+
+        pg_user, pg_password, pg_db = self.url_parts('PU_SQLALCHEMY_DATABASE_URL')
+        ch_user, ch_password, ch_db = self.url_parts('PU_CLICKHOUSE_DATABASE_URL')
+        for key in ('PU_GRAFANA_ADMIN_USER', 'PU_GRAFANA_ADMIN_PASSWORD',
+                    'PU_MQTT_HOST', 'PU_MQTT_USERNAME', 'PU_MQTT_PASSWORD'):
+            self.need(key)
+
+        if values.get('PU_SAVE_REPO_PATH', 'repo_cache').startswith('/'):
+            self.errors.append('PU_SAVE_REPO_PATH must be relative to /app, like repo_cache')
+
+        unresolved = [k for k, v in values.items() if k.startswith('PU_') and is_placeholder(v)]
+        if unresolved:
+            self.errors.append(f'fill in the placeholders: {", ".join(unresolved)}')
+
+        # What docker-compose.yml cannot work out itself: parts of the database URLs
+        # and the address the frontend asks. Everything else is the owner's PU_ values.
+        env = {k: v for k, v in values.items() if k.startswith('PU_')}
+        env |= {
+            'POSTGRES_USER': pg_user,
+            'POSTGRES_PASSWORD': pg_password,
+            'POSTGRES_DB': pg_db,
+            'CLICKHOUSE_USER': ch_user,
+            'CLICKHOUSE_PASSWORD': ch_password,
+            'CLICKHOUSE_DB': ch_db,
+            'INSTANCE_URL': f'{api}/instances/current',
         }
-        
-    def get_postgres_env_dict(self) -> dict:
-        logging.info('Generate .env.postgres')
-        return {
-            'POSTGRES_USER': self.current_user_env['POSTGRES_USER'],
-            'POSTGRES_PASSWORD': self.current_user_env['POSTGRES_PASSWORD'],
-            'POSTGRES_DB': self.current_user_env['POSTGRES_DB'],
-            'POSTGRES_HOST_AUTH_METHOD': 'md5'
-        }
-        
-    def get_clickhouse_env_dict(self) -> dict:
-        logging.info('Generate .env.clickhouse')
-        return {
-            'CLICKHOUSE_USER': self.current_user_env['CLICKHOUSE_USER'],
-            'CLICKHOUSE_PASSWORD': self.current_user_env['CLICKHOUSE_PASSWORD'],
-            'CLICKHOUSE_DB': self.current_user_env['CLICKHOUSE_DB']
-        }
-        
-    def get_frontend_env_dict(self) -> dict:
-        logging.info('Generate .env.frontend')
-        return {
-            'VITE_INSTANCE_NAME': self.current_user_env['PU_DOMAIN'],
-            'VITE_SELF_URI': self.get_uri(),
-            'VITE_BACKEND_URI': self.get_uri() + 'pepeunit/graphql'
-        }
-        
-    def get_backend_data_pipe_env_dict(self) -> dict:
-        logging.info('Generate .env.backend_data_pipe')
-        
-        postgres_user: str = self.current_user_env['POSTGRES_USER']
-        postgres_pass: str = self.current_user_env['POSTGRES_PASSWORD']
-        postgres_db: str = self.current_user_env['POSTGRES_DB']
-        database_url: str = f'postgresql://{postgres_user}:{postgres_pass}@postgres:5432/{postgres_db}'
-        
-        clickhouse_user: str = self.current_user_env['CLICKHOUSE_USER']
-        clickhouse_pass: str = self.current_user_env['CLICKHOUSE_PASSWORD']
-        clickhouse_db: str = self.current_user_env['CLICKHOUSE_DB']
-        clickhouse_url: str = f'clickhouse+native://{clickhouse_user}:{clickhouse_pass}@clickhouse:9000/{clickhouse_db}'
-        
-        secret_key = self.load_existing_value(
-            PathEnvs.BACKEND_DATA_PIPE.value, 'PU_DP_SECRET_KEY'
+
+        return {COMPOSE_ENV: self.env_text(env)} | self.render_templates(
+            {
+                'PU_APP_PREFIX': app_prefix,
+                'PU_URI': uri,
+                'PU_API_URL': api,
+            }
         )
-        if not secret_key:
-            secret_key = self.load_existing_value(
-                PathEnvs.BACKEND.value, 'PU_SECRET_KEY'
-            )
-        if not secret_key:
-            secret_key = base64.b64encode(os.urandom(32)).decode('utf-8')
 
-        result_dict = {
-            'PU_DP_DOMAIN': self.current_user_env['PU_DOMAIN'],
-            'PU_DP_SECRET_KEY': secret_key,
-            'PU_DP_SQLALCHEMY_DATABASE_URL': database_url,
-            'PU_DP_CLICKHOUSE_DATABASE_URL': clickhouse_url,
-            'PU_DP_MQTT_HOST': self.current_user_env['PU_MQTT_HOST'],
-            'PU_DP_MQTT_PORT': self.current_user_env['PU_MQTT_PORT'],
-        }
-        
-        return result_dict
-    
-    def get_backend_env_dict(self) -> dict:
-        logging.info('Generate .env.backend')
-        
-        postgres_user: str = self.current_user_env['POSTGRES_USER']
-        postgres_pass: str = self.current_user_env['POSTGRES_PASSWORD']
-        postgres_db: str = self.current_user_env['POSTGRES_DB']
-        database_url: str = f'postgresql://{postgres_user}:{postgres_pass}@postgres:5432/{postgres_db}'
-        
-        clickhouse_user: str = self.current_user_env['CLICKHOUSE_USER']
-        clickhouse_pass: str = self.current_user_env['CLICKHOUSE_PASSWORD']
-        clickhouse_db: str = self.current_user_env['CLICKHOUSE_DB']
-        clickhouse_url: str = f'clickhouse+native://{clickhouse_user}:{clickhouse_pass}@clickhouse:9000/{clickhouse_db}'
-        
-        existing_keys = {}
-        if os.path.exists(PathEnvs.BACKEND.value):
-            logging.info('Existing .env.backend found, loading sensitive keys')
-            existing_env = self.load_env(PathEnvs.BACKEND.value)
-            for key in ['PU_SECRET_KEY', 'PU_ENCRYPT_KEY', 'PU_STATIC_SALT']:
-                if key in existing_env:
-                    existing_keys[key] = existing_env[key]
-        
-        result_dict = {
-            'PU_DOMAIN': self.current_user_env['PU_DOMAIN'],
-            'PU_WORKER_COUNT': 2,
-            'PU_SQLALCHEMY_DATABASE_URL': database_url,
-            'PU_CLICKHOUSE_DATABASE_URL': clickhouse_url,
-            'PU_SECRET_KEY': existing_keys.get('PU_SECRET_KEY', base64.b64encode(os.urandom(32)).decode('utf-8')),
-            'PU_ENCRYPT_KEY': existing_keys.get('PU_ENCRYPT_KEY', base64.b64encode(os.urandom(32)).decode('utf-8')),
-            'PU_STATIC_SALT': existing_keys.get('PU_STATIC_SALT', base64.b64encode(os.urandom(32)).decode('utf-8')),
-            'PU_TELEGRAM_TOKEN': self.current_user_env['PU_TELEGRAM_TOKEN'],
-            'PU_TELEGRAM_BOT_LINK': self.current_user_env['PU_TELEGRAM_BOT_LINK'],
-            'PU_PROMETHEUS_MULTIPROC_DIR': './prometheus_metrics',
-            'PU_MQTT_HOST': self.current_user_env['PU_MQTT_HOST'],
-            'PU_MQTT_PORT': self.current_user_env['PU_MQTT_PORT'],
-            'PU_MQTT_USERNAME': self.current_user_env['PU_MQTT_USERNAME'],
-            'PU_MQTT_PASSWORD': self.current_user_env['PU_MQTT_PASSWORD'],
-            'PU_GRAFANA_ADMIN_USER': self.current_user_env['GF_USER'],
-            'PU_GRAFANA_ADMIN_PASSWORD': self.current_user_env['GF_PASSWORD']
-        }
-        
-        if 'PU_SECURE' in self.current_user_env:
-            result_dict['PU_SECURE'] = self.current_user_env['PU_SECURE']
-            
-        if 'PU_MQTT_SECURE' in self.current_user_env:
-            result_dict['PU_MQTT_SECURE'] = self.current_user_env['PU_MQTT_SECURE']
-            
-        return result_dict
-    
-    def get_grafana_env_dict(self) -> dict:
-        logging.info('Generate .env.grafana')
-        return {
-            'GF_SECURITY_ADMIN_USER': self.current_user_env['GF_USER'],
-            'GF_SECURITY_ADMIN_PASSWORD': self.current_user_env['GF_PASSWORD'],
-            'GF_USERS_ALLOW_SIGN_UP': 'false',
-            'GF_SERVER_DOMAIN': self.current_user_env['PU_DOMAIN'],
-            'GF_SERVER_ROOT_URL': '%(protocol)s://%(domain)s/grafana/',
-            'GF_SERVER_SERVE_FROM_SUB_PATH': 'true',
-            'GF_LOG_LEVEL': 'error',
-            'GF_PLUGINS_PREINSTALL_SYNC': 'yesoreyeram-infinity-datasource,marcusolsson-hourly-heatmap-panel'
-        }
-    
-    def load_existing_value(self, filename: str, key: str):
-        if not os.path.exists(filename):
-            return None
-        value = self.load_env(filename).get(key, '').strip()
-        return value or None
+    def render_templates(self, markers: dict) -> dict[str, str]:
+        result = {}
+        for name in TEMPLATES:
+            text = (ROOT / name).read_text()
+            for key, value in markers.items():
+                text = text.replace(f'@{key}@', value)
+            left = sorted(set(re.findall(r'@[A-Z_]+@', text)))
+            if left:
+                self.errors.append(f'{name}: unknown markers {", ".join(left)}')
+            result[name.removesuffix('.template')] = text
+        return result
 
-    def load_env(self, filename: str) -> dict:
-        logging.info(f'Load variables from {filename}')
-        
-        env_dict = {}
-        with open(filename, "r") as file:
-            for line in file:
-                line = line.strip()
-                if line and not line.startswith("#"):
-                    key, value = line.split("=", 1)
-                    env_dict[key.strip()] = value.strip()
-                    
-        return env_dict
-    
-    def save_env(self, env_dict: dict, filename: str) -> None:
-        logging.info(f'Save {filename}')
-        
-        with open(filename, "w") as file:
-            for key, value in env_dict.items():
-                file.write(f"{key}={value}\n")
 
-    
+def write(name: str, text: str) -> None:
+    path = ROOT / name
+    if path.is_dir():
+        sys.exit(f'{name} is a directory (docker makes one when a mounted file is missing). Remove it and run again')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    mode = 0o600 if name == COMPOSE_ENV else 0o644
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
+    with os.fdopen(fd, 'w') as file:
+        file.write(text)
+    os.chmod(path, mode)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description='Build .env and the configs in data/ from .env.local or .env.global')
+    parser.add_argument('--dry-run', action='store_true', help='check the owner file, write nothing')
+    dry_run = parser.parse_args().dry_run
+
+    source = find_input()
+    values = parse_env(source)
+
+    secrets = resolve_secrets(values)
+    values.update(secrets)
+
+    builder = Builder(values, source.name)
+    files = builder.build()
+    if builder.errors:
+        sys.exit('Cannot build, nothing was written:\n  - ' + '\n  - '.join(dict.fromkeys(builder.errors)))
+
+    if dry_run:
+        logging.info('Dry run, nothing was written')
+        return
+
+    if secrets:
+        save_secrets(source, secrets)
+        logging.info('%s: saved %s', source.name, ', '.join(secrets))
+    for name, text in files.items():
+        write(name, text)
+        logging.info('%s: written', name)
+    logging.info('Start the stack: docker compose up -d')
+
+
 if __name__ == '__main__':
-    env_maker = MakeEnv()
+    main()

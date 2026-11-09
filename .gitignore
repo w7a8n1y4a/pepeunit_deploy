@@ -1,5 +1,5 @@
-env/*
-!env/.keep
+.env
+env/
 
 .env.global
 .env.local
@@ -11,6 +11,8 @@ data/postgres/db
 data/clickhouse/data
 data/grafana/data
 data/grafana/grafana.ini
+data/nginx/nginx.conf
+data/prometheus/prometheus.yml
 
 backups
 
