@@ -2,7 +2,7 @@
 
 Развёртывание Pepeunit через `docker compose`: один файл настроек, генерация конфигов, резервные копии и обновление.
 
-Полная инструкция: [документация по развёртыванию](https://pepeunit.com/deployment/docker/deploy.html).
+Полная инструкция: [документация по развёртыванию](https://pepeunit.com/library/docs?doc=deployment/docker/deploy).
 
 ## Быстрый старт
 
@@ -66,7 +66,7 @@ docker compose up -d --remove-orphans
 docker logs -f backend
 ```
 
-`backend` сам применит миграции баз данных. Если `make_env.py` остановился с ошибкой, сверьте свой файл с актуальным образцом `.example`. Переход с `1.4.0` на `1.5.0` и со старых версий описан в [документации](https://pepeunit.com/deployment/docker/backup-update.html).
+`backend` сам применит миграции баз данных. Если `make_env.py` остановился с ошибкой, сверьте свой файл с актуальным образцом `.example`. Переход с `1.4.0` на `1.5.0` и со старых версий описан в [документации](https://pepeunit.com/library/docs?doc=deployment/docker/backup-update).
 
 ## Полезные команды
 
@@ -77,4 +77,4 @@ docker compose down                    # остановить
 curl http://127.0.0.1:5291/pepeunit/api/v1/instances/current   # версия backend
 ```
 
-Остальные команды: [документация](https://pepeunit.com/deployment/docker/commands.html).
+Остальные команды: [документация](https://pepeunit.com/library/docs?doc=deployment/docker/commands).
