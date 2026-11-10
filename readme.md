@@ -1,105 +1,80 @@
-# Развёртывание Pepeunit
+# Pepeunit Deploy
 
-[Документация по развёртыванию](https://pepeunit.com/deployment/docker/deploy.html)
+Развёртывание Pepeunit через `docker compose`: один файл настроек, генерация конфигов, резервные копии и обновление.
 
-## Шаги чтобы запустить Pepeunit
+Полная инструкция: [документация по развёртыванию](https://pepeunit.com/deployment/docker/deploy.html).
 
-0. Установить `docker` и `docker compose`
-1. Скачать репозиторий развёртывания и перейти в него
-    ```bash
-    git clone https://git.pepemoss.com/pepe/pepeunit/pepeunit_deploy.git
-    cd pepeunit_deploy
-    ```
-1. Установить нужный уровень видимости для data дирректории:
-    ```bash
-    sudo chmod 777 -R data
-    ```
-1. Заполнить файл `.env.local` или `.env.global` своими данными на основе одноимённых файлов с пометкой `.example`
-1. Запустить команду генерации окружений для сервисов, все файлы будут сохранены в дирректории `env`:
-    ```bash
-    python make_env.py
-    ```
-1. Если требуется дополнительно изменить переменные сервисов, внесите изменения в `env/.env.<service-name>` файлы
-1. Выполните запуск `docker-compose.yml`
-    ```bash
-    docker compose up
-    ```
+## Быстрый старт
 
-## Работа с бэкапами
+Нужны `docker`, `docker compose`, `python3` и `git`.
 
-### Создание бэкапа
-1. Запустите `Pepeunit`, чтобы скрипт `backup` имел доступ до баз данных и версии `backend`
-    ```bash
-    docker compose up -d
-    ```
-1. Запустите создание `backup`, не прерывая работу контейнеров
-    ```bash
-    sudo ./backup.sh backup
-    ```
+```bash
+git clone https://git.pepemoss.com/pepe/pepeunit/pepeunit_deploy.git
+cd pepeunit_deploy
+cp .env.local.example .env.local
+```
 
-### Восстановление из бэкапа
-1. Выключите инстанс
-    ```bash
-    docker compose down
-    ```
-1. Разверните версию из `backup`
-    ```bash
-    sudo ./backup.sh restore backups/backup_name.tar
-    ```
-1. Запустите `Pepeunit`
-    ```bash
-    docker compose up -d
-    ```
+Откройте `.env.local` (для публичного инстанса с доменом и `https` возьмите `.env.global.example`) и измените:
+- `PU_DOMAIN`, `PU_MQTT_HOST` - адрес инстанса
+- логины и пароли баз, `PU_MQTT_*`, `PU_GRAFANA_ADMIN_*` - образцы публичные, замените их
+- `PU_SECRET_KEY`, `PU_ENCRYPT_KEY` - оставьте `<32-bit-key>`, ключи создадутся сами
+
+```bash
+python3 make_env.py
+docker compose up -d
+```
+
+Откройте `PU_DOMAIN` в браузере и зарегистрируйтесь. Затем станьте владельцем (`POSTGRES_USER` и `POSTGRES_DB` смотрите в `.env`):
+
+```bash
+docker exec -it postgres psql -U <POSTGRES_USER> -d <POSTGRES_DB> -c "SELECT uuid, login FROM users;"
+docker exec -it backend python scripts/set_owner.py <uuid>
+```
+
+Порты `80` и `1883` должны быть доступны для Unit и пользователей. `docker-compose.yml` публикует порты всех сервисов, поэтому на публичном сервере закройте файрволом всё, кроме `80`, `443` и `1883`.
+
+## Что в репозитории
+
+Путь | Назначение
+-- | --
+`docker-compose.yml` | Все контейнеры, версии образов закреплены
+`.env.local.example`, `.env.global.example` | Образцы файла настроек
+`.env.local`, `.env.global` | Ваши настройки. **Единственный файл, который нужно править**, в `git` не попадает
+`make_env.py` | Собирает `.env` и конфиги в `data/` из файла настроек
+`backup.sh` | Резервные копии и восстановление
+`data/` | Конфиги сервисов; `*.template` обрабатывает `make_env.py`
+`backups/` | Готовые копии, создаётся автоматически
+
+`.env` и конфиги в `data/` создаются заново при каждом запуске `make_env.py`, руками их не правят. Ключи `PU_SECRET_KEY` и `PU_ENCRYPT_KEY` при этом сохраняются, менять их нельзя: все токены и зашифрованные данные станут недействительны.
+
+## Резервные копии
+
+```bash
+sudo ./backup.sh backup                              # создать, инстанс должен работать
+sudo ./backup.sh restore backups/<имя файла>.tar     # восстановить
+```
+
+Архив лежит в `backups/` и содержит ключи и пароли: храните его так же бережно, как сервер. Восстановление **удаляет все тома проекта** и запускает Pepeunit заново.
 
 ## Обновление
 
-1. Создайте `backup`
-    ```bash
-    sudo ./backup.sh backup
-    ```
-1. Выполните обновление репозитория
-    ```bash
-    git pull
-    ```
-1. Выполните обновление `env` переменных. Существующие секретные `32-битные ключи` изменены не будут. Остальные переменные будут сгенерированы, как при первой генерации. Если вы выполняли ручной ввод данных в `env/.env.<service-name>` файлы, то ваши изменения будут **УДАЛЕНЫ**, поэтому обязательно делайте `backup` перед запуском команды. Если у вас очень тонкая настройка, изменяйте настройки вручную путем изменения файлов в `env/.env.<service-name>`.
-    ```bash
-    python make_env.py
-    ```
-1. Выполните запуск `Pepeunit`
-    ```bash
-    docker compose up -d
-    ```
-## Полезные команды для дебага
+```bash
+sudo ./backup.sh backup
+git pull
+python3 make_env.py
+docker compose up -d --remove-orphans
+docker logs -f backend
+```
 
-- Остановить `docker compose`
-    ```bash
-    docker compose down
-    ```
-- Запустить `docker compose` в фоновом режиме
-    ```bash
-    docker compose up -d
-    ```
-- Посмотреть логи конкретного контейнера
-    ```bash
-    docker logs postgres
-    ```
-- Подключение к оболочкам контейнеров `docker`:
-    ```bash
-    docker exec -it frontend /bin/sh
-    docker exec -it backend /bin/bash
-    docker exec -it datapipe /bin/sh
-    docker exec -it emqx /bin/bash
-    docker exec -it postgres /bin/bash
-    docker exec -it redis /bin/bash
-    docker exec -it nginx /bin/bash
-    docker exec -it clickhouse /bin/bash
-    ```
-- Зайти в консоль базы данных, `POSTGRES_USER` и `POSTGRES_DB` можно найти в `env/.env.postgres`
-    ```bash
-    docker exec -it postgres psql -U <POSTGRES_USER> -d <POSTGRES_DB>
-    psql -U <POSTGRES_USER> -d <POSTGRES_DB>
-    ```
-- Отправить запрос в `ClickHouse` через `curl`:
-    ```bash
-    curl "http://admin:mypassword@127.0.0.1:8123/?query=SHOW+TABLES"
-    ```
+`backend` сам применит миграции баз данных. Если `make_env.py` остановился с ошибкой, сверьте свой файл с актуальным образцом `.example`. Переход с `1.4.0` на `1.5.0` и со старых версий описан в [документации](https://pepeunit.com/deployment/docker/backup-update.html).
+
+## Полезные команды
+
+```bash
+docker compose ps                      # состояние контейнеров
+docker logs -f backend                 # логи контейнера
+docker compose down                    # остановить
+curl http://127.0.0.1:5291/pepeunit/api/v1/instances/current   # версия backend
+```
+
+Остальные команды: [документация](https://pepeunit.com/deployment/docker/commands.html).
