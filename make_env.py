@@ -139,8 +139,14 @@ class Builder:
             value = f"'{value}'"
         return f'{key}={value}\n'
 
-    def env_text(self, items: dict) -> str:
-        return self.header + ''.join(self.env_line(k, v) for k, v in items.items())
+    def env_text(self, items: dict, generated: dict) -> str:
+        return (
+            self.header
+            + ''.join(self.env_line(k, v) for k, v in items.items())
+            + '\n\n# Auto-generated from PU_ settings. Manual changes are overwritten on every run.\n'
+            + '# Change the source settings in .env.local or .env.global instead.\n'
+            + ''.join(self.env_line(k, v) for k, v in generated.items())
+        )
 
     def build(self) -> dict[str, str]:
         values = self.values
@@ -167,7 +173,7 @@ class Builder:
         # What docker-compose.yml cannot work out itself: parts of the database URLs
         # and the address the frontend asks. Everything else is the owner's PU_ values.
         env = {k: v for k, v in values.items() if k.startswith('PU_')}
-        env |= {
+        generated = {
             'POSTGRES_USER': pg_user,
             'POSTGRES_PASSWORD': pg_password,
             'POSTGRES_DB': pg_db,
@@ -177,7 +183,7 @@ class Builder:
             'INSTANCE_URL': f'{api}/instances/current',
         }
 
-        return {COMPOSE_ENV: self.env_text(env)} | self.render_templates(
+        return {COMPOSE_ENV: self.env_text(env, generated)} | self.render_templates(
             {
                 'PU_APP_PREFIX': app_prefix,
                 'PU_URI': uri,

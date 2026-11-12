@@ -27,8 +27,8 @@ docker compose up -d
 Откройте `PU_DOMAIN` в браузере и зарегистрируйтесь. Затем станьте владельцем (`POSTGRES_USER` и `POSTGRES_DB` смотрите в `.env`):
 
 ```bash
-docker exec -it postgres psql -U <POSTGRES_USER> -d <POSTGRES_DB> -c "SELECT uuid, login FROM users;"
-docker exec -it backend python scripts/set_owner.py <uuid>
+docker exec -it postgres psql -U <POSTGRES_USER> -d <POSTGRES_DB> -c "SELECT uuid, LEFT(hash_public_key, 6) || '-' || RIGHT(hash_public_key, 6) AS hash_public_key, role, create_datetime FROM users;"
+docker exec -it -w /app backend python -m scripts.set_owner <uuid>
 ```
 
 Порты `80` и `1883` должны быть доступны для Unit и пользователей. `docker-compose.yml` публикует порты всех сервисов, поэтому на публичном сервере закройте файрволом всё, кроме `80`, `443` и `1883`.
