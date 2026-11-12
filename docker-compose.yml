@@ -1,3 +1,10 @@
+# Keep the initializer and backend on the same image and repository cache.
+x-cache-volume: &cache-volume backend_repo_cache:/app/${PU_SAVE_REPO_PATH:-repo_cache}
+x-backend: &backend
+  image: w7a8n1y4a/pepeunit-server:1.5.0
+  volumes:
+    - *cache-volume
+
 services:
   redis:
     image: redis:8.10.3
@@ -65,19 +72,37 @@ services:
       retries: 5
       start_period: 10s
 
+  backend-cache-init:
+    <<: *backend
+    user: "0:0"
+    restart: "no"
+    read_only: true
+    network_mode: none
+    volumes:
+      - *cache-volume
+      - ./scripts/prepare_repo_cache.sh:/prepare_repo_cache.sh:ro
+    environment:
+      - PU_SAVE_REPO_PATH
+    entrypoint: ["/bin/bash", "/prepare_repo_cache.sh"]
+
   backend:
-    image: w7a8n1y4a/pepeunit-server:1.5.0
+    <<: *backend
     container_name: backend
+    user: "10001:10001"
     restart: always
     depends_on:
-      - redis
-      - postgres
-      - clickhouse
-      - emqx
+      backend-cache-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_started
+      clickhouse:
+        condition: service_started
+      emqx:
+        condition: service_started
     ports:
       - "5291:5000"
-    volumes:
-      - backend_repo_cache:/app/${PU_SAVE_REPO_PATH:-repo_cache}
     # a variable the owner did not set stays unset, the server uses its default
     environment:
       - PU_APP_PREFIX
